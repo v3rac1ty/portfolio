@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rishi Vemulapalli — Engineer. Builder. Developer.</title>
-<meta name="description" content="Portfolio of Rishi Vemulapalli — Computer Engineering, Data Science (AI/ML) at UIUC. ML engineering, robotics, embedded systems.">
-<meta property="og:title" content="Rishi Vemulapalli — Engineer. Builder. Developer.">
+<title>Rishi Vemulapalli - Engineer. Builder. Developer.</title>
+<meta name="description" content="Portfolio of Rishi Vemulapalli - Computer Engineering, Data Science (AI/ML) at UIUC. ML engineering, robotics, embedded systems.">
+<meta property="og:title" content="Rishi Vemulapalli - Engineer. Builder. Developer.">
 <meta property="og:description" content="CE + Data Science (AI/ML) @ UIUC. Building at the intersection of hardware and intelligence.">
 <meta property="og:type" content="website">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; connect-src 'self';">
@@ -13,10 +13,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* ── RESET ───────────────────────────────────────────────── */
+/* ===== Reset ===== */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 
-/* ── TOKENS ──────────────────────────────────────────────── */
+/* ===== Tokens ===== */
 :root{
   --bg:#050505;
   --surface:#0d0d0d;
@@ -50,22 +50,22 @@ button{cursor:pointer;border:none;background:none;font:inherit;color:inherit}
 img{display:block;max-width:100%}
 ::selection{background:var(--accent);color:var(--bg)}
 
-/* ── GRAIN ───────────────────────────────────────────────── */
+/* ===== Grain ===== */
 body::after{
   content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
   opacity:.028;
   background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-/* ── UTILITIES ───────────────────────────────────────────── */
+/* ===== Utilities ===== */
 .container{max-width:1200px;margin:0 auto;padding:0 clamp(1.25rem,4vw,3rem)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 
-/* ── REVEAL ANIMATION ────────────────────────────────────── */
+/* ===== Reveal Animation ===== */
 .reveal{opacity:0;transform:translateY(20px);transition:opacity .65s var(--ease-out),transform .65s var(--ease-out)}
 .reveal.visible{opacity:1;transform:none}
 
-/* ── SECTION HEADER ──────────────────────────────────────── */
+/* ===== Section Header ===== */
 .section-header{margin-bottom:clamp(2.5rem,6vh,4rem)}
 .section-number{
   font-family:var(--font-mono);font-size:.65rem;letter-spacing:.2em;
@@ -78,9 +78,7 @@ body::after{
 }
 section{padding:clamp(5rem,11vh,8rem) 0}
 
-/* ════════════════════════════════════════════════════════════
-   NAV
-   ════════════════════════════════════════════════════════════ */
+/* ===== Nav ===== */
 .nav{
   position:fixed;top:0;left:0;right:0;z-index:100;
   height:var(--nav-h);
@@ -110,19 +108,16 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 .nav__links a.active{color:var(--text);border-bottom-color:var(--accent)}
 @media(max-width:480px){.nav__links{display:none}}
 
-/* ════════════════════════════════════════════════════════════
-   HERO
-   ════════════════════════════════════════════════════════════ */
+/* ===== Hero ===== */
 .hero{
   min-height:100vh;display:flex;align-items:center;
   padding-top:var(--nav-h);position:relative;overflow:hidden;
 }
-.hero__grid{
-  position:absolute;inset:0;
-  background-image:radial-gradient(circle,rgba(255,184,0,.11) 1px,transparent 1px);
-  background-size:30px 30px;opacity:.5;
-  mask-image:radial-gradient(ellipse 70% 65% at 75% 45%,black 30%,transparent 100%);
-  -webkit-mask-image:radial-gradient(ellipse 70% 65% at 75% 45%,black 30%,transparent 100%);
+/* Hero canvas sizing */
+#hero-canvas{
+  position:absolute;top:0;left:0;
+  width:100%;height:100%;
+  z-index:0;display:block;
 }
 .hero__content{position:relative;z-index:1;padding:clamp(2.5rem,7vh,5rem) 0}
 .hero__eyebrow{
@@ -166,9 +161,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 }
 @keyframes scrollLine{0%,100%{opacity:.2;transform:scaleY(.4);transform-origin:top}55%{opacity:1;transform:scaleY(1);transform-origin:top}}
 
-/* ════════════════════════════════════════════════════════════
-   ABOUT
-   ════════════════════════════════════════════════════════════ */
+/* ===== About ===== */
 .about__layout{display:grid;grid-template-columns:1.1fr 1fr;gap:clamp(2.5rem,7vw,6rem);align-items:start}
 @media(max-width:720px){.about__layout{grid-template-columns:1fr}}
 .about__text p{
@@ -194,9 +187,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 }
 .chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
 
-/* ════════════════════════════════════════════════════════════
-   PROJECTS
-   ════════════════════════════════════════════════════════════ */
+/* ===== Projects ===== */
 .projects-grid{
   display:grid;
   grid-template-columns:repeat(3,1fr);
@@ -206,7 +197,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 @media(max-width:900px){.projects-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:540px){.projects-grid{grid-template-columns:1fr}}
 
-/* ── Project card ── */
+/* Project card */
 .project-card{
   border-right:1px solid var(--surface-border);
   border-bottom:1px solid var(--surface-border);
@@ -257,7 +248,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   white-space:nowrap;
 }
 
-/* add-project hint card — owner-only, shown via ?dev URL param */
+/* Add-project hint card (owner-only; shown via ?dev URL param) */
 .project-card--add{
   display:none;
   border-style:dashed;cursor:default;
@@ -269,9 +260,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 .project-card--add:hover::after{opacity:0}
 .project-card--add p{font-family:var(--font-mono);font-size:.65rem;letter-spacing:.1em;text-align:center;line-height:1.8}
 
-/* ════════════════════════════════════════════════════════════
-   EXPERIENCE
-   ════════════════════════════════════════════════════════════ */
+/* ===== Experience ===== */
 .exp-list{border-top:1px solid var(--surface-border)}
 .exp-item{
   display:grid;grid-template-columns:10rem 1px 1fr;gap:0 2.25rem;
@@ -297,9 +286,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 }
 .exp-desc{font-size:.855rem;color:var(--text-dim);line-height:1.7}
 
-/* ════════════════════════════════════════════════════════════
-   CONTACT
-   ════════════════════════════════════════════════════════════ */
+/* ===== Contact ===== */
 .contact__layout{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2.5rem,7vw,6rem);align-items:start}
 @media(max-width:640px){.contact__layout{grid-template-columns:1fr}}
 .contact__heading{
@@ -328,9 +315,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 .contact__link:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
 .contact__link-icon{width:1.1rem;text-align:center;flex-shrink:0;font-size:.85rem}
 
-/* ════════════════════════════════════════════════════════════
-   FOOTER
-   ════════════════════════════════════════════════════════════ */
+/* ===== Footer ===== */
 .site-footer{border-top:1px solid var(--surface-border);padding:1.75rem 0}
 .site-footer__inner{
   display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;
@@ -339,9 +324,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   font-family:var(--font-mono);font-size:.6rem;letter-spacing:.1em;color:var(--text-dimmer);
 }
 
-/* ════════════════════════════════════════════════════════════
-   PROJECT MODAL (slide-in panel)
-   ════════════════════════════════════════════════════════════ */
+/* ===== Project Modal (slide-in panel) ===== */
 .modal-backdrop{
   position:fixed;inset:0;z-index:200;
   background:rgba(5,5,5,.75);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
@@ -398,7 +381,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   font-family:var(--font-mono);font-size:.65rem;letter-spacing:.14em;color:var(--text-dimmer);
 }
 
-/* ── Rendered markdown ── */
+/* Rendered markdown */
 .md-body{font-size:.875rem;color:var(--text-dim);line-height:1.8}
 .md-body h1,.md-body h2{font-family:var(--font-display);letter-spacing:.04em;color:var(--text);margin:2.25rem 0 .65rem}
 .md-body h1{font-size:clamp(1.6rem,2.5vw,2rem)}
@@ -439,10 +422,10 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 </head>
 <body>
 
-<!-- ══ NAV ══════════════════════════════════════════════════ -->
+<!-- ===== NAV ===== -->
 <nav class="nav" id="site-nav" aria-label="Main navigation">
   <div class="container nav__inner">
-    <a href="#hero" class="nav__logo" aria-label="Rishi Vemulapalli — home">RV_</a>
+    <a href="#hero" class="nav__logo" aria-label="Rishi Vemulapalli - home">RV_</a>
     <ul class="nav__links" role="list">
       <li><a href="#about">About</a></li>
       <li><a href="#projects">Work</a></li>
@@ -452,16 +435,16 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   </div>
 </nav>
 
-<!-- ══ HERO ═════════════════════════════════════════════════ -->
+<!-- ===== HERO ===== -->
 <section id="hero" class="hero">
-  <div class="hero__grid" aria-hidden="true"></div>
+  <canvas id="hero-canvas" aria-hidden="true"></canvas>
   <div class="container hero__content">
     <p class="hero__eyebrow">Computer Engineering · AI / ML</p>
     <h1 class="hero__name">RISHI<br><em>VEMULAPALLI</em></h1>
     <div class="hero__divider" aria-hidden="true"></div>
     <p class="hero__sub">
       <strong>Engineer. Builder. Developer.</strong><br>
-      CE + Data Science @ UIUC — building at the intersection<br>of hardware, software, and machine intelligence.
+      Computer Engineering @ UIUC - building at the intersection of hardware, software, and machine intelligence.
     </p>
     <div class="hero__ctas">
       <a href="#projects" class="btn btn--primary">View Work ↓</a>
@@ -471,7 +454,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   <p class="hero__scroll" aria-hidden="true">SCROLL</p>
 </section>
 
-<!-- ══ ABOUT ════════════════════════════════════════════════ -->
+<!-- ===== ABOUT ===== -->
 <section id="about" class="reveal">
   <div class="container">
     <header class="section-header">
@@ -481,7 +464,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
     <div class="about__layout">
       <div class="about__text">
         <p>I'm a <strong>Computer Engineering</strong> major with a Data Science minor (AI/ML focus) at the University of Illinois Urbana-Champaign, graduating May 2027.</p>
-        <p>My work lives at the intersection of algorithms and hardware — from training neural networks to writing firmware for competition robots. I care about the full stack: the model, the system it runs on, and the physical world it touches.</p>
+        <p>My work lives at the intersection of algorithms and hardware - from training neural networks to writing firmware for competition robots. I care about the full stack: the model, the system it runs on, and the physical world it touches.</p>
         <p>Currently seeking <strong>internship</strong> opportunities in ML engineering, robotics, or systems software.</p>
         <div class="about__meta">
           <div class="about__meta-row">
@@ -503,6 +486,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         <div class="skills-grid">
           <span class="chip">Python</span>
           <span class="chip">C++</span>
+          <span class="chip">Java</span>
           <span class="chip">PyTorch</span>
           <span class="chip">YOLOv8</span>
           <span class="chip">ONNX</span>
@@ -527,14 +511,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   </div>
 </section>
 
-<!-- ══ PROJECTS ══════════════════════════════════════════════
-     To add a project:
-       1. Copy an <article class="project-card"> block below.
-       2. Set data-slug to a kebab-case identifier.
-       3. Set data-github to the repo URL (or "#" if private).
-       4. Update title, description, and tags.
-       5. Create projects/{slug}.md with the full write-up.
-   ══════════════════════════════════════════════════════════ -->
+<!-- ===== PROJECTS ===== --> 
 <section id="projects" class="reveal">
   <div class="container">
     <header class="section-header">
@@ -543,7 +520,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
     </header>
     <div class="projects-grid" id="projects-grid">
 
-      <!-- FEATURED ────────────────────────────────────────── -->
+      <!-- Featured -->
       <article class="project-card project-card--featured"
                data-slug="3d-print-ai-fail-detector"
                data-github="https://github.com/v3rac1ty"
@@ -553,7 +530,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
           <span class="project-card__arrow" aria-hidden="true">↗</span>
         </div>
         <h3 class="project-card__title">3D Print AI Fail Detector</h3>
-        <p class="project-card__desc">Real-time failure detection combining YOLOv8 computer vision with a 1D CNN on accelerometer data. Runs on-device via ONNX runtime — 40% reduction in false positives over baseline heuristics.</p>
+        <p class="project-card__desc">Real-time failure detection combining YOLOv8 computer vision with a 1D CNN on accelerometer data. Runs on-device via ONNX runtime - 40% reduction in false positives over baseline heuristics.</p>
         <div class="project-card__tags">
           <span class="tag">YOLOv8</span>
           <span class="tag">ONNX</span>
@@ -563,7 +540,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         </div>
       </article>
 
-      <!-- ─────────────────────────────────────────────────── -->
+      <!-- Project -->
       <article class="project-card"
                data-slug="bilstm-covid-classifier"
                data-github="https://github.com/v3rac1ty"
@@ -581,7 +558,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         </div>
       </article>
 
-      <!-- ─────────────────────────────────────────────────── -->
+      <!-- Project -->
       <article class="project-card"
                data-slug="f1-pit-stop-analysis"
                data-github="https://github.com/v3rac1ty"
@@ -600,7 +577,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         </div>
       </article>
 
-      <!-- ─────────────────────────────────────────────────── -->
+      <!-- Project -->
       <article class="project-card"
                data-slug="vex-autonomous-navigation"
                data-github="https://github.com/v3rac1ty"
@@ -610,7 +587,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
           <span class="project-card__arrow" aria-hidden="true">↗</span>
         </div>
         <h3 class="project-card__title">VEX Autonomous Navigation Stack</h3>
-        <p class="project-card__desc">Full C++ navigation stack: Kalman filter odometry, Pure Pursuit path tracking, trapezoidal motion profiles. Qualified for 2024 VEXU World Championship.</p>
+        <p class="project-card__desc">Full C++ navigation stack: Kalman filter odometry, and Pure Pursuit path tracking. Qualified for the 2024, 2025, and 2026 VEXU World Championship.</p>
         <div class="project-card__tags">
           <span class="tag">C++</span>
           <span class="tag">Kalman Filter</span>
@@ -619,7 +596,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         </div>
       </article>
 
-      <!-- ─────────────────────────────────────────────────── -->
+      <!-- Project -->
       <article class="project-card"
                data-slug="ml-fitness-tracker"
                data-github="https://github.com/v3rac1ty"
@@ -638,7 +615,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         </div>
       </article>
 
-      <!-- ─────────────────────────────────────────────────── -->
+      <!-- Project -->
       <article class="project-card"
                data-slug="stock-market-tracker"
                data-github="https://github.com/v3rac1ty"
@@ -657,7 +634,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         </div>
       </article>
 
-      <!-- ADD-PROJECT placeholder ─────────────────────────── -->
+      <!-- Add-project placeholder -->
       <div class="project-card project-card--add" aria-hidden="true">
         <p>+ ADD PROJECT<br>See comment above</p>
       </div>
@@ -666,7 +643,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   </div>
 </section>
 
-<!-- ══ EXPERIENCE ════════════════════════════════════════════ -->
+<!-- ===== EXPERIENCE ===== -->
 <section id="experience" class="reveal">
   <div class="container">
     <header class="section-header">
@@ -709,9 +686,9 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         <div class="exp-date">JUN 2022<br>JUN 2023</div>
         <div class="exp-rule" aria-hidden="true"></div>
         <div>
-          <p class="exp-role">Captain &amp; Lead Programmer</p>
+          <p class="exp-role">Mentor</p>
           <p class="exp-org">Jericho VEX Robotics Club · Jericho, NY</p>
-          <p class="exp-desc">Led the team as Captain and primary programmer. Designed control software and autonomous routines; coached teammates on C++ and robot kinematics.</p>
+          <p class="exp-desc">Previously led the team as Captain and primary programmer. Designed control software and autonomous routines. Mentored members on Java and robot kinematics.</p>
         </div>
       </div>
 
@@ -719,7 +696,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   </div>
 </section>
 
-<!-- ══ CONTACT ═══════════════════════════════════════════════ -->
+<!-- ===== CONTACT ===== -->
 <section id="contact" class="reveal">
   <div class="container">
     <header class="section-header">
@@ -733,11 +710,11 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         <span class="contact__status">Open to opportunities · Summer / Fall 2026</span>
       </div>
       <nav class="contact__links" aria-label="Contact links">
-        <!-- Email assembled by JS — no plaintext address in HTML -->
-        <a class="contact__link contact-link" data-u="rishivemulapalli" data-d="gmail.com" href="#">
+        <!-- Email assembled by JS at click-time to reduce bot scraping -->
+        <button type="button" class="contact__link contact-link" aria-label="Send email">
           <span class="contact__link-icon" aria-hidden="true">✉</span>
-          <span class="contact-link-text">Email</span>
-        </a>
+          <span class="contact-link-text">rishivemulapalli [at] gmail [dot] com</span>
+        </button>
         <a class="contact__link" href="https://github.com/v3rac1ty" target="_blank" rel="noopener noreferrer">
           <span class="contact__link-icon" aria-hidden="true">⌥</span>
           <span>github.com/v3rac1ty</span>
@@ -751,15 +728,15 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   </div>
 </section>
 
-<!-- ══ FOOTER ════════════════════════════════════════════════ -->
+<!-- ===== FOOTER ===== -->
 <footer class="site-footer">
   <div class="container site-footer__inner">
     <span class="site-footer__copy">© 2026 Rishi Vemulapalli</span>
-    <span class="site-footer__copy">CE + DS · UIUC · May 2027</span>
+    <span class="site-footer__copy">CE · DS · UIUC · May 2027</span>
   </div>
 </footer>
 
-<!-- ══ PROJECT MODAL ═════════════════════════════════════════ -->
+<!-- ===== PROJECT MODAL ===== -->
 <div class="modal-backdrop" id="modal-backdrop" aria-hidden="true"></div>
 <div class="modal-panel"
      id="modal-panel"
@@ -781,32 +758,492 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   </div>
 </div>
 
-<!-- marked.js — required for markdown rendering in project panels -->
+<!-- marked.js - required for markdown rendering in project panels -->
 <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js" defer></script>
 <script>
 (function () {
   'use strict';
 
-  /* ── Owner dev mode (?dev in URL shows add-project card) ── */
-  if (new URLSearchParams(window.location.search).has('dev')) {
-    document.body.classList.add('dev-mode');
-  }
+  /* Owner dev mode */
+  (function () {
+    var params = new URLSearchParams(window.location.search);
+    if (!params.has('dev')) return;
 
-  /* ── Email obfuscation ──────────────────────────────────── */
-  document.querySelectorAll('.contact-link').forEach(function (el) {
-    var addr = el.dataset.u + '@' + el.dataset.d;
-    el.href = 'mailto:' + addr;
-    var txt = el.querySelector('.contact-link-text');
-    if (txt) txt.textContent = addr;
-  });
+    var host = window.location.hostname;
+    var isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+    var sessionUnlocked = false;
+    try {
+      sessionUnlocked = window.sessionStorage.getItem('dev-unlocked') === '1';
+    } catch (_) {}
 
-  /* ── Nav: scrolled state ────────────────────────────────── */
+    // Short owner code gate for non-local hosts. This is deterrence, not full auth.
+    var unlockCode = params.get('code') || '';
+    var canUnlock = unlockCode === 'rv-dev-2026';
+
+    if (isLocalHost || sessionUnlocked || canUnlock) {
+      document.body.classList.add('dev-mode');
+      try { window.sessionStorage.setItem('dev-unlocked', '1'); } catch (_) {}
+    }
+
+    // Remove dev params so they are not left in copied/shared URLs.
+    params.delete('dev');
+    params.delete('code');
+    var next = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
+    window.history.replaceState(null, '', next);
+  })();
+
+  /* Hero comet canvas */
+  (function () {
+    const canvas = document.getElementById('hero-canvas');
+    const ctx    = canvas.getContext('2d');
+
+    let W = 0, H = 0;
+    let mouseX = -9999, mouseY = -9999;
+    let scrollOpacity = 1;
+
+    const ACCENT_RGB  = '255, 184, 0';
+    const ACCENT      = `rgba(${ACCENT_RGB},`;
+    const MAX         = 50;
+    const TRAIL_LEN   = 32;
+    const MOUSE_R     = 560;
+    const MOUSE_R2    = MOUSE_R * MOUSE_R;
+    const LINE_R      = 420;
+    const LINE_R2     = LINE_R * LINE_R;
+    const GRAV        = 2200;
+    const MASS_REF_R  = 3.5;
+    const GRID_STEP   = 36;
+    const GRID_BEND   = 48000;
+    const GRID_SOFT2  = 55 * 55;           // pre-squared softening constant
+    const GRID_DEFR2  = 320 * 320;         // skip deformation beyond this dist²
+    const GRID_BUCKETS = 64;               // higher bucket count = smoother twinkle transitions
+    const MAX_SPARKS  = 36;
+    const EXPLOSION_COOLDOWN_MS = 45;
+    const particles   = [];
+    const explosions  = [];
+    let lastExplosionAt = -1e9;
+    let   grid        = [];
+    // Pre-allocated grid render buffers (no per-frame GC)
+    let   gridBuf     = new Float32Array(0);
+    const bucketCount = new Int32Array(GRID_BUCKETS);
+
+    // Spark (explosion fragment)
+    function Spark(x, y) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 1.2 + Math.random() * 2.8;
+      this.x = x; this.y = y;
+      this.vx = Math.cos(a) * s;
+      this.vy = Math.sin(a) * s;
+      this.r       = 0.8 + Math.random() * 1.4;
+      this.maxLife = 220 + Math.random() * 180;
+      this.age     = 0;
+      this.alive   = true;
+    }
+    Spark.prototype.update = function (dt) {
+      this.age += dt;
+      if (this.age >= this.maxLife) { this.alive = false; return; }
+      this.vx *= 0.91; this.vy *= 0.91;
+      this.x += this.vx; this.y += this.vy;
+    };
+    Spark.prototype.draw = function () {
+      const t = 1 - this.age / this.maxLife;
+      ctx.globalAlpha = t * t * 0.92 * scrollOpacity;
+      ctx.fillStyle   = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r * t, 0, Math.PI * 2);
+      ctx.fill();
+    };
+
+    function spawnExplosion(x, y) {
+      const now = performance.now();
+      if (now - lastExplosionAt < EXPLOSION_COOLDOWN_MS) return;
+      lastExplosionAt = now;
+
+      const slots = MAX_SPARKS - explosions.length;
+      if (slots <= 0) return;
+
+      const n = Math.min(slots, 4 + Math.floor(Math.random() * 3));
+      for (let i = 0; i < n; i++) explosions.push(new Spark(x, y));
+    }
+
+    function resizeCanvas() {
+      const hero = document.getElementById('hero');
+      W = canvas.width  = hero.offsetWidth  || window.innerWidth;
+      H = canvas.height = hero.offsetHeight || window.innerHeight;
+      initGrid();
+      syncHeroRect();
+    }
+
+    function initGrid() {
+      grid = [];
+      const cols = Math.ceil(W / GRID_STEP) + 1;
+      const rows = Math.ceil(H / GRID_STEP) + 1;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          grid.push({
+            bx:       c * GRID_STEP,
+            by:       r * GRID_STEP,
+            phase:    Math.random() * Math.PI * 2,
+            freq:     0.9  + Math.random() * 1.3,   // 0.9–2.2 Hz - faster twinkle
+            // Pre-compute the static bottom-fade factor (depends only on by)
+            posAlpha: 1,   // filled in after W/H are known
+          });
+        }
+      }
+      // Bake static fade factor now that H is set
+      const fadeZone = H * 0.28, fadeTop = H * 0.72;
+      for (let i = 0; i < grid.length; i++) {
+        const by = grid[i].by;
+        grid[i].posAlpha = by < fadeTop
+          ? 1
+          : Math.max(0, 1 - (by - fadeTop) / fadeZone);
+      }
+      // Pre-allocate render buffer: 2 floats (x,y) × dots × buckets
+      gridBuf = new Float32Array(GRID_BUCKETS * grid.length * 2);
+    }
+
+    function drawGrid(ts) {
+      const t           = ts / 1000;
+      const BASE_ALPHA  = 0.28;
+      const hasMouse    = mouseX !== -9999;
+
+      // Zero bucket counters (Int32Array.fill is fast)
+      bucketCount.fill(0);
+
+      for (let i = 0; i < grid.length; i++) {
+        const d = grid[i];
+        if (d.posAlpha <= 0) continue;
+
+        // Hermite smoothstep for organic twinkling (smoother transitions)
+        const raw    = (Math.sin(d.phase + t * d.freq) + 1) * 0.5;  // [0, 1]
+        const smooth = raw * raw * (3 - 2 * raw);                   // eased [0, 1]
+        const twinkle = 0.4 + .9 * smooth;                         // [0.1, 1.0]
+        const alpha   = BASE_ALPHA * twinkle * d.posAlpha * scrollOpacity;
+
+        // Spacetime deformation - skip sqrt for distant dots (dist² pre-check)
+        let rx = d.bx, ry = d.by;
+        if (hasMouse) {
+          const dx = mouseX - d.bx, dy = mouseY - d.by;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < GRID_DEFR2 && d2 > 0.25) {
+            const dist = Math.sqrt(d2);
+            const s    = GRID_BEND / (d2 + GRID_SOFT2);
+            rx += (dx / dist) * s;
+            ry += (dy / dist) * s;
+          }
+        }
+
+        // Quantise alpha to bucket, store position
+        const b   = Math.min(GRID_BUCKETS - 1, (alpha * GRID_BUCKETS) | 0);
+        const off = (b * grid.length + bucketCount[b]) * 2;
+        gridBuf[off]     = rx;
+        gridBuf[off + 1] = ry;
+        bucketCount[b]++;
+      }
+
+      // One fill() per non-empty bucket - O(GRID_BUCKETS) draw calls total
+      ctx.fillStyle = '#ffffff';
+      for (let b = 0; b < GRID_BUCKETS; b++) {
+        const count = bucketCount[b];
+        if (count === 0) continue;
+        ctx.globalAlpha = (b + 0.5) / GRID_BUCKETS;
+        ctx.beginPath();
+        const base = b * grid.length * 2;
+        for (let i = 0; i < count; i++) {
+          const x = gridBuf[base + i * 2], y = gridBuf[base + i * 2 + 1];
+          ctx.moveTo(x + 1.1, y);   // moveTo prevents hairlines between arcs
+          ctx.arc(x, y, 1.1, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+    }
+
+    // Particle
+    function Particle(sx, sy) {
+      this.x = sx + (Math.random() - 0.5) * 14;
+      this.y = sy + (Math.random() - 0.5) * 14;
+
+      const spd   = 0.30 + Math.random() * 0.60;
+      const angle = Math.PI * 0.25 + (Math.random() - 0.5) * 0.46;
+      this.bvx = Math.cos(angle) * spd;
+      this.bvy = Math.sin(angle) * spd;
+      this.vx  = this.bvx;
+      this.vy  = this.bvy;
+
+      this.r       = 2 + Math.random() * 3;
+      this.maxLife = 9000 + Math.random() * 8000;
+      this.age     = 0;
+      this.alive   = true;
+
+      this.sPhase = Math.random() * Math.PI * 2;
+      this.sFreq  = 0.5 + Math.random() * 0.7;
+      this.sAmp   = 0.08 + Math.random() * 0.16;
+
+      // Pre-cache perpendicular unit vector (never changes per particle)
+      const ibl  = 1 / Math.hypot(this.bvx, this.bvy);
+      this.bpx   = -this.bvy * ibl;
+      this.bpy   =  this.bvx * ibl;
+
+      // Ring buffer: Float32Array avoids object allocation & shift() O(n)
+      this.trail = new Float32Array(TRAIL_LEN * 2);
+      this.trailHead = 0;   // index of oldest slot
+      for (let i = 0; i < TRAIL_LEN; i++) {
+        this.trail[i * 2]     = this.x;
+        this.trail[i * 2 + 1] = this.y;
+      }
+    }
+
+    Particle.prototype.alpha = function () {
+      const fi = 600, fo = 1200;
+      let a;
+      if (this.age < fi)                a = this.age / fi;
+      else if (this.age > this.maxLife - fo) a = (this.maxLife - this.age) / fo;
+      else a = 1;
+      // Fade out as comet drifts into the next section
+      const fadeStart = H * 0.72;
+      const posFade   = this.y < fadeStart ? 1 : Math.max(0, 1 - (this.y - fadeStart) / (H * 0.28));
+      return a * posFade;
+    };
+
+    Particle.prototype.update = function (dt) {
+      this.age += dt;
+      if (this.age >= this.maxLife) { this.alive = false; return; }
+
+      // Sine-wave drift - use pre-cached perpendicular, no per-frame hypot
+      const t   = this.age / 1000;
+      const sw  = Math.sin(this.sPhase + t * this.sFreq) * this.sAmp;
+      const tvx = this.bvx + this.bpx * sw;
+      const tvy = this.bvy + this.bpy * sw;
+
+      // Gravitational attraction - squared-distance guard avoids sqrt when far away
+      const mdx = this.x - mouseX;
+      const mdy = this.y - mouseY;
+      const md2 = mdx * mdx + mdy * mdy;
+      if (md2 < MOUSE_R2 && md2 > 0.25) {
+        const mdst = Math.sqrt(md2);
+        const distRatio = md2 / MOUSE_R2;
+        const longRangeBoost = 1 + 0.7 * distRatio;
+        const massFactor = this.r / MASS_REF_R;
+        const f    = Math.min((GRAV * massFactor / md2) * longRangeBoost, 3.0);   // include comet mass (size)
+        this.vx -= (mdx / mdst) * f * 0.042;
+        this.vy -= (mdy / mdst) * f * 0.042;
+        if (mdst < 11) { spawnExplosion(this.x, this.y); this.alive = false; return; }
+      }
+
+      this.vx += (tvx - this.vx) * 0.026;
+      this.vy += (tvy - this.vy) * 0.026;
+      this.x  += this.vx;
+      this.y  += this.vy;
+
+      // Kill particles that have drifted well off-canvas (no point tracking them)
+      if (this.x > W + 60 || this.y > H + 60) { this.alive = false; return; }
+
+      // O(1) ring-buffer trail update
+      this.trail[this.trailHead * 2]     = this.x;
+      this.trail[this.trailHead * 2 + 1] = this.y;
+      this.trailHead = (this.trailHead + 1) % TRAIL_LEN;
+    };
+
+    Particle.prototype.draw = function () {
+      const a    = this.alpha();
+      const buf  = this.trail;
+      const head = this.trailHead;    // oldest slot index
+
+      // Tail and head positions from ring buffer
+      const tailIdx = head;
+      const headIdx = (head + TRAIL_LEN - 1) % TRAIL_LEN;
+      const tx = buf[tailIdx * 2], ty = buf[tailIdx * 2 + 1];
+      const hx = buf[headIdx * 2], hy = buf[headIdx * 2 + 1];
+
+      // Gradient trail - no shadowBlur (expensive on long paths)
+      const grad = ctx.createLinearGradient(tx, ty, hx, hy);
+      grad.addColorStop(0,   `${ACCENT} 0)`);
+      grad.addColorStop(0.5, `${ACCENT} ${(a * 0.25).toFixed(2)})`);
+      grad.addColorStop(1,   `${ACCENT} ${(a * 0.85).toFixed(2)})`);
+
+      ctx.globalAlpha = scrollOpacity;
+      ctx.shadowBlur  = 0;
+      ctx.strokeStyle = grad;
+      ctx.lineWidth   = this.r * 0.75;
+      ctx.lineCap     = 'round';
+      ctx.lineJoin    = 'round';
+      ctx.beginPath();
+      // Walk ring buffer oldest → newest
+      const s0 = tailIdx * 2;
+      ctx.moveTo(buf[s0], buf[s0 + 1]);
+      for (let i = 1; i < TRAIL_LEN; i++) {
+        const idx = ((tailIdx + i) % TRAIL_LEN) * 2;
+        ctx.lineTo(buf[idx], buf[idx + 1]);
+      }
+      ctx.stroke();
+
+      // Head glow - shadowBlur only on this small circle
+      const mdx = hx - mouseX;
+      const mdy = hy - mouseY;
+      const md2 = mdx * mdx + mdy * mdy;
+      const glowBoost = md2 < MOUSE_R2 ? (1 - md2 / MOUSE_R2) * 0.4 : 0;
+      ctx.shadowBlur  = 10 + glowBoost * 8;
+      ctx.shadowColor = `rgba(${ACCENT_RGB}, ${0.5 + glowBoost})`;
+      ctx.fillStyle   = `rgba(255,210,60,${(a * (0.88 + glowBoost * 0.12)).toFixed(2)})`;
+      ctx.beginPath();
+      ctx.arc(hx, hy, this.r * (1 + glowBoost * 0.35), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;   // explicit reset - faster than restore()
+    };
+
+    // Cursor lines (drawn under particles)
+    function drawCursorLines() {
+      if (mouseX === -9999) return;
+      // Set shared state once outside loop
+      ctx.strokeStyle = `rgba(${ACCENT_RGB},1)`;
+      ctx.lineWidth   = 0.65;
+      ctx.setLineDash([3, 5]);
+      for (let i = 0; i < particles.length; i++) {
+        const p       = particles[i];
+        const hIdx    = ((p.trailHead + TRAIL_LEN - 1) % TRAIL_LEN) * 2;
+        const hx      = p.trail[hIdx], hy = p.trail[hIdx + 1];
+        const dx      = hx - mouseX;
+        const dy      = hy - mouseY;
+        const dist2   = dx * dx + dy * dy;
+        if (dist2 < LINE_R2) {
+          ctx.globalAlpha = (1 - dist2 / LINE_R2) * 0.55 * p.alpha() * scrollOpacity;
+          ctx.beginPath();
+          ctx.moveTo(mouseX, mouseY);
+          ctx.lineTo(hx, hy);
+          ctx.stroke();
+        }
+      }
+      ctx.setLineDash([]);   // reset dash once after loop
+    }
+
+    // Spawning: spread along top 30% and left 30%
+    let lastSpawn  = 0;
+    let spawnDelay = 650;
+
+    function spawnCluster(ts) {
+      if (particles.length >= MAX) return;
+      const n = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < n; i++) {
+        if (particles.length >= MAX) break;
+        let sx, sy;
+        if (Math.random() < 0.5) {
+          sx = Math.random() * W * 0.32;   // along top edge
+          sy = Math.random() * H * 0.06;
+        } else {
+          sx = Math.random() * W * 0.06;   // along left edge
+          sy = Math.random() * H * 0.32;
+        }
+        particles.push(new Particle(sx, sy));
+      }
+      lastSpawn  = ts;
+      spawnDelay = 400 + Math.random() * 800;
+    }
+
+    // Render loop
+    let prev = 0;
+    function animate(ts) {
+      const dt = prev ? Math.min(ts - prev, 50) : 16;
+      prev = ts;
+
+      ctx.clearRect(0, 0, W, H);
+
+      drawGrid(ts);   // star field - bottom layer; manages its own globalAlpha
+
+      if (ts - lastSpawn > spawnDelay) spawnCluster(ts);
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        if (!particles[i].alive) {
+          particles[i] = particles[particles.length - 1];
+          particles.pop();
+        }
+      }
+      for (let i = 0; i < particles.length; i++) particles[i].update(dt);
+
+      drawCursorLines();   // lines behind particles
+
+      for (let i = 0; i < particles.length; i++) particles[i].draw();
+
+      // Explosions on top
+      for (let i = explosions.length - 1; i >= 0; i--) {
+        const spark = explosions[i];
+        spark.update(dt);
+        if (!spark.alive) {
+          explosions[i] = explosions[explosions.length - 1];
+          explosions.pop();
+          continue;
+        }
+        spark.draw();
+      }
+
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(animate);
+    }
+
+    let heroLeft = 0, heroTop = 0;
+    function syncHeroRect() {
+      const rect = document.getElementById('hero').getBoundingClientRect();
+      heroLeft = rect.left;
+      heroTop  = rect.top;
+    }
+
+    document.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX - heroLeft;
+      mouseY = e.clientY - heroTop;
+    });
+
+    function syncScrollOpacity() {
+      const heroBottom = document.getElementById('hero').getBoundingClientRect().bottom;
+      scrollOpacity = heroBottom > 0 ? Math.min(1, heroBottom / 200) : 0;
+      syncHeroRect();
+    }
+    window.addEventListener('scroll', syncScrollOpacity, { passive: true });
+    window.addEventListener('resize', resizeCanvas,      { passive: true });
+
+    resizeCanvas();
+    requestAnimationFrame(animate);
+  })();
+
+  /* Email obfuscation (assemble only on user intent) */
+  (function () {
+    var link = document.querySelector('.contact-link');
+    if (!link) return;
+
+    var cipher = 'AAAAAAAAAAAHBRIYCBoJBDIOHgkAGksOHQQ=';
+    var resolvedAddr = '';
+
+    function decodeMail() {
+      var seed = (document.querySelector('.hero__name') || { textContent: '' }).textContent
+        .toLowerCase()
+        .replace(/[^a-z]/g, '');
+      if (!seed) return '';
+      var key = seed.slice(0, 8);
+      var bytes = atob(cipher);
+      var out = '';
+      for (var i = 0; i < bytes.length; i++) {
+        out += String.fromCharCode(bytes.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+      }
+      return out;
+    }
+
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (!resolvedAddr) {
+        var addr = decodeMail();
+        if (!addr || addr.indexOf('@') === -1) return;
+        resolvedAddr = addr;
+      }
+
+      // Use mailto so browser/OS can present the user's preferred mail app options.
+      window.location.href = 'mailto:' + resolvedAddr;
+    });
+  })();
+
+  /* Nav: scrolled state */
   var nav = document.getElementById('site-nav');
   function syncNav() { nav.classList.toggle('scrolled', window.scrollY > 30); }
   window.addEventListener('scroll', syncNav, { passive: true });
   syncNav();
 
-  /* ── Nav: active section highlight ─────────────────────── */
+  /* Nav: active section highlight */
   var NAV_SECTIONS = ['about', 'projects', 'experience', 'contact'];
   var navMap = {};
   NAV_SECTIONS.forEach(function (id) {
@@ -827,7 +1264,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   }
   window.addEventListener('scroll', syncActiveNav, { passive: true });
 
-  /* ── Reveal on scroll ───────────────────────────────────── */
+  /* Reveal on scroll */
   var revealObserver = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
       if (entry.isIntersecting) {
@@ -838,7 +1275,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
   document.querySelectorAll('.reveal').forEach(function (el) { revealObserver.observe(el); });
 
-  /* ── Project modal ──────────────────────────────────────── */
+  /* Project modal */
   var backdrop  = document.getElementById('modal-backdrop');
   var panel     = document.getElementById('modal-panel');
   var titleEl   = document.getElementById('modal-title');
@@ -895,7 +1332,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
     loadingEl.style.display = 'none';
     /* marked is loaded from CDN above; fall back to preformatted text */
     if (typeof marked !== 'undefined') {
-      /* marked parses developer-controlled static files only — no user input reaches here.
+      /* marked parses developer-controlled static files only - no user input reaches here.
          DOMPurify would add defence-in-depth if this ever accepts external content. */
       marked.use({ gfm: true, breaks: false });
       mdEl.innerHTML = marked.parse(text);

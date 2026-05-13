@@ -254,9 +254,8 @@ float PID::update(double target, double current) {
 | Positional error (1 m straight) | ±4 mm |
 | Heading error (90° point turn) | ±0.6° |
 | Autonomous routine repeatability | 94% (48 / 51 practice runs) |
-| Competition autonomous win rate | 78% |
 
-These numbers were sufficient to qualify for the **2024 VEXU World Championship** in Dallas.
+These numbers were sufficient to qualify for the **2024, 2025, and 2026 VEXU World Championships** in Dallas.
 
 ---
 
@@ -268,7 +267,7 @@ C++ · PROS (VEX RTOS) · VEX V5 Brain (ARM Cortex-A9) · VEX V5 IMU · Optical 
 
 ## Further Reading
 
-- [Purdue SIGBots — PID Controller](https://wiki.purduesigbots.com/software/control-algorithms/pid-controller)
-- [Purdue SIGBots — Odometry](https://wiki.purduesigbots.com/software/odometry)
-- [Purdue SIGBots — Pure Pursuit](https://wiki.purduesigbots.com/software/control-algorithms/basic-pure-pursuit)
-- [Purdue SIGBots — Kalman Filter](https://wiki.purduesigbots.com/software/control-algorithms/kalman-filter)
+- [Purdue SIGBots - PID Controller](https://wiki.purduesigbots.com/software/control-algorithms/pid-controller)
+- [Purdue SIGBots - Odometry](https://wiki.purduesigbots.com/software/odometry)
+- [Purdue SIGBots - Pure Pursuit](https://wiki.purduesigbots.com/software/control-algorithms/basic-pure-pursuit)
+- [Purdue SIGBots - Kalman Filter](https://wiki.purduesigbots.com/software/control-algorithms/kalman-filter)

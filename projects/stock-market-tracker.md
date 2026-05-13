@@ -22,7 +22,7 @@ The application is built around four primary components:
 ### Threading Model
 
 ```
-Yahoo Finance API (HTTPS)
+Google Finance API (HTTPS)
         │
         ▼
   libcurl fetch thread ──► CSV parser ──► Ring buffer (lock-free SPSC)
