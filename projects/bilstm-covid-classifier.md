@@ -1,3 +1,5 @@
+<!-- date: TODO -->
+
 # BiLSTM COVID-19 Tweet Classifier
 
 A sequence model that classifies COVID-19 tweets into five categories — misinformation, confirmed case reports, official guidance, personal experience, and news — trained on a 100k-tweet corpus.

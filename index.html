@@ -65,6 +65,54 @@ body::after{
 .reveal{opacity:0;transform:translateY(20px);transition:opacity .65s var(--ease-out),transform .65s var(--ease-out)}
 .reveal.visible{opacity:1;transform:none}
 
+/* ===== Text intro animations =====
+   Split into per-character spans by JS, then replayed whenever the element
+   re-enters the viewport. Two effects, both reading as "machine bringing text up":
+     power  - each glyph flickers on like a segment display energising
+     decode - glyphs resolve out of scrambled noise, left to right (terminal decode)
+   Only monospace runs get "decode": swapping glyphs in a proportional font would
+   change each character's width and shift the layout on every frame. 
+   Every hiding rule is gated on .anim-ready, which JS adds only once it has taken
+   ownership of an element. Without that gate a JS error or an IntersectionObserver
+   that never delivers would leave the name and section titles permanently invisible;
+   with it, the untouched markup simply renders as normal text. 
+*/
+.anim-wrap{display:inline-block}
+.anim-char{display:inline-block;white-space:pre}
+[data-anim].anim-ready .anim-char{opacity:0}
+
+[data-anim="power"].anim-ready.anim-play .anim-char{
+  animation:animPowerOn .5s var(--ease-out) both;
+  animation-delay:calc(var(--i) * 26ms);
+}
+@keyframes animPowerOn{
+  0%  {opacity:0;  filter:blur(5px)}
+  35% {opacity:.4; filter:blur(1px)}
+  45% {opacity:.06}                     /* contact not settled */
+  62% {opacity:1;  filter:blur(0)}
+  72% {opacity:.45}                     /* second, weaker flicker */
+  100%{opacity:1;  filter:blur(0)}
+}
+
+/* Unresolved glyphs sit dim; each brightens as it locks in. brightness() rather than
+   a fixed colour so it works on the accent-coloured runs and the dim ones alike. */
+[data-anim="decode"].anim-ready.anim-play .anim-char{opacity:.45}
+[data-anim="decode"].anim-ready.anim-play .anim-char.anim-set{opacity:1}
+[data-anim="decode"].anim-ready .anim-char.anim-hot{filter:brightness(1.9)}
+
+[data-anim="fade"].anim-ready{
+  opacity:0;transform:translateY(14px);
+  transition:opacity .7s var(--ease-out),transform .7s var(--ease-out);
+  transition-delay:calc(var(--d,0) * 1ms);
+}
+[data-anim="fade"].anim-ready.anim-play{opacity:1;transform:none}
+
+@media (prefers-reduced-motion: reduce){
+  .reveal{opacity:1 !important;transform:none !important;transition:none !important}
+  [data-anim] .anim-char{opacity:1 !important;animation:none !important;filter:none !important}
+  [data-anim="fade"]{opacity:1 !important;transform:none !important;transition:none !important}
+}
+
 /* ===== Section Header ===== */
 .section-header{margin-bottom:clamp(2.5rem,6vh,4rem)}
 .section-number{
@@ -119,7 +167,38 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   width:100%;height:100%;
   z-index:0;display:block;
 }
+/* Damage layer. Same geometry as #hero-canvas but stacked over .hero__content, so a
+   fracture drawn on a letter is not hidden behind the very glyph it belongs to.
+   pointer-events:none keeps the CTAs underneath clickable and the text selectable. */
+#hero-fx{
+  position:absolute;top:0;left:0;
+  width:100%;height:100%;
+  z-index:2;display:block;pointer-events:none;
+}
 .hero__content{position:relative;z-index:1;padding:clamp(2.5rem,7vh,5rem) 0}
+
+/* A destroyed glyph is hidden, not removed: visibility keeps its box in the layout, so
+   the line never reflows and the survivors around it do not jump. Its canvas-side
+   fragments are what the eye follows in the meantime. */
+.anim-char.letter-dead{visibility:hidden}
+/* Specific enough to beat [data-anim="power"].anim-ready.anim-play .anim-char, which
+   would otherwise keep running its intro animation on a glyph that is re-forming. */
+[data-anim].anim-ready.anim-play .anim-char.letter-respawn,
+.anim-char.letter-respawn{
+  animation:letterRespawn .7s var(--ease-out) both;
+  animation-delay:0s;
+}
+@keyframes letterRespawn{
+  0%  {opacity:0;   filter:blur(7px) brightness(2.6); transform:scale(1.4)}
+  40% {opacity:.85; filter:blur(1.5px) brightness(2);  transform:scale(.95)}
+  55% {opacity:.2}                                    /* re-forming, not settled */
+  72% {opacity:1;   filter:blur(0) brightness(1.35);  transform:scale(1.03)}
+  100%{opacity:1;   filter:none;                      transform:none}
+}
+@media (prefers-reduced-motion: reduce){
+  .anim-char.letter-dead{visibility:visible}
+  .anim-char.letter-respawn{animation:none !important}
+}
 .hero__eyebrow{
   font-family:var(--font-mono);font-size:.65rem;letter-spacing:.22em;text-transform:uppercase;
   color:var(--accent);margin-bottom:1.5rem;
@@ -248,18 +327,6 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   white-space:nowrap;
 }
 
-/* Add-project hint card (owner-only; shown via ?dev URL param) */
-.project-card--add{
-  display:none;
-  border-style:dashed;cursor:default;
-  align-items:center;justify-content:center;min-height:180px;
-  color:var(--text-dimmer);
-}
-.dev-mode .project-card--add{display:flex}
-.project-card--add:hover{background:var(--bg)}
-.project-card--add:hover::after{opacity:0}
-.project-card--add p{font-family:var(--font-mono);font-size:.65rem;letter-spacing:.1em;text-align:center;line-height:1.8}
-
 /* ===== Experience ===== */
 .exp-list{border-top:1px solid var(--surface-border)}
 .exp-item{
@@ -290,7 +357,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 .contact__layout{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2.5rem,7vw,6rem);align-items:start}
 @media(max-width:640px){.contact__layout{grid-template-columns:1fr}}
 .contact__heading{
-  font-family:var(--font-display);font-size:clamp(2.75rem,5.5vw,4.5rem);
+  font-family:var(--font-display);font-size:clamp(2rem,4vw,3.25rem);
   letter-spacing:.04em;line-height:1.02;margin-bottom:1.5rem;
 }
 .contact__heading em{font-style:normal;color:var(--accent)}
@@ -333,14 +400,17 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 .modal-backdrop.is-open{opacity:1;pointer-events:all}
 
 .modal-panel{
-  position:fixed;top:0;right:0;bottom:0;z-index:201;
-  width:min(680px,100%);
-  background:var(--surface);border-left:1px solid var(--surface-border);
+  position:fixed;top:50%;left:50%;z-index:201;
+  width:min(980px,92vw);max-height:85vh;
+  background:var(--surface);border:1px solid var(--surface-border);
+  box-shadow:0 24px 64px rgba(0,0,0,.5);
   display:flex;flex-direction:column;
-  transform:translateX(100%);transition:transform .45s var(--ease-out);
-  pointer-events:all;
+  transform:translate(-50%,-50%) scale(.96);opacity:0;pointer-events:none;
+  transition:transform .35s var(--ease-out),opacity .35s var(--ease-out);
 }
-.modal-backdrop.is-open + .modal-panel{transform:translateX(0)}
+.modal-backdrop.is-open + .modal-panel{
+  transform:translate(-50%,-50%) scale(1);opacity:1;pointer-events:all;
+}
 
 .modal-panel__header{
   display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;
@@ -438,15 +508,18 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 <!-- ===== HERO ===== -->
 <section id="hero" class="hero">
   <canvas id="hero-canvas" aria-hidden="true"></canvas>
+  <!-- Second canvas, layered ABOVE the hero text: fractures and shatter fragments
+       belong on top of the glyph they damaged, while the comet field stays behind it. -->
+  <canvas id="hero-fx" aria-hidden="true"></canvas>
   <div class="container hero__content">
-    <p class="hero__eyebrow">Computer Engineering · AI / ML</p>
-    <h1 class="hero__name">RISHI<br><em>VEMULAPALLI</em></h1>
+    <p class="hero__eyebrow" data-anim="decode">Computer Engineering · CS / EE</p>
+    <h1 class="hero__name" data-anim="power">RISHI<br><em>VEMULAPALLI</em></h1>
     <div class="hero__divider" aria-hidden="true"></div>
-    <p class="hero__sub">
-      <strong>Engineer. Builder. Developer.</strong><br>
-      Computer Engineering @ UIUC - building at the intersection of hardware, software, and machine intelligence.
+    <p class="hero__sub" data-anim="fade" style="--d:240">
+      <strong>Design. Build. Deploy.</strong><br>
+       Computer Engineering @ UIUC - Building at the intersection of hardware and software.
     </p>
-    <div class="hero__ctas">
+    <div class="hero__ctas" data-anim="fade" style="--d:380">
       <a href="#projects" class="btn btn--primary">View Work ↓</a>
       <a href="https://github.com/v3rac1ty" class="btn btn--ghost" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
     </div>
@@ -458,14 +531,14 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 <section id="about" class="reveal">
   <div class="container">
     <header class="section-header">
-      <p class="section-number">01</p>
-      <h2 class="section-title">ABOUT</h2>
+      <p class="section-number" data-anim="decode">01</p>
+      <h2 class="section-title" data-anim="power">ABOUT</h2>
     </header>
     <div class="about__layout">
       <div class="about__text">
-        <p>I'm a <strong>Computer Engineering</strong> major with a Data Science minor (AI/ML focus) at the University of Illinois Urbana-Champaign, graduating May 2027.</p>
-        <p>My work lives at the intersection of algorithms and hardware - from training neural networks to writing firmware for competition robots. I care about the full stack: the model, the system it runs on, and the physical world it touches.</p>
-        <p>Currently seeking <strong>internship</strong> opportunities in ML engineering, robotics, or systems software.</p>
+        <p>Hello! My name is Rishi Vemulapalli, and I'm a <strong>Computer Engineering</strong> major with a Data Science minor (AI/ML focus) at the University of Illinois Urbana-Champaign, graduating May 2027.</p>
+        <p>I enjoy building projects that have to actually work - I have trained a machine learning model for tweet classification, written the autonomous navigation software for a competition VEX robot, and designed the PCB for an ESP32 racing dashboard. One project needed both sides at once was a fitness tracker's sensor-fusion classifier, trained in Python, then hand-ported to C with plans to deploy onto a microcontroller.</p>
+        <p>Currently looking for <strong>internships</strong> in software engineering, embedded systems, ML engineering, or robotics - open to wherever the work is interesting.</p>
         <div class="about__meta">
           <div class="about__meta-row">
             <span class="about__meta-label">LOCATION</span>
@@ -484,27 +557,22 @@ section{padding:clamp(5rem,11vh,8rem) 0}
       <div>
         <p class="about__skills-label">Technical Skills</p>
         <div class="skills-grid">
-          <span class="chip">Python</span>
+          <span class="chip">C</span>
           <span class="chip">C++</span>
-          <span class="chip">Java</span>
-          <span class="chip">PyTorch</span>
-          <span class="chip">YOLOv8</span>
-          <span class="chip">ONNX</span>
-          <span class="chip">TensorFlow</span>
           <span class="chip">OpenCV</span>
+          <span class="chip">Java</span>
+          <span class="chip">TensorFlow</span>
+          <span class="chip">Python</span>
+          <span class="chip">PyTorch</span>
           <span class="chip">scikit-learn</span>
-          <span class="chip">ROS</span>
-          <span class="chip">Kalman Filter</span>
-          <span class="chip">Embedded C</span>
-          <span class="chip">Arduino</span>
-          <span class="chip">Linux</span>
-          <span class="chip">Git</span>
-          <span class="chip">SQL</span>
           <span class="chip">NumPy</span>
           <span class="chip">Pandas</span>
           <span class="chip">Matplotlib</span>
-          <span class="chip">ImGui</span>
-          <span class="chip">libcurl</span>
+          <span class="chip">Arduino</span>
+          <span class="chip">Linux</span>
+          <span class="chip">Git</span>
+          <span class="chip">YOLOv8</span>
+          <span class="chip">ONNX</span>
         </div>
       </div>
     </div>
@@ -515,18 +583,37 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 <section id="projects" class="reveal">
   <div class="container">
     <header class="section-header">
-      <p class="section-number">02</p>
-      <h2 class="section-title">WORK</h2>
+      <p class="section-number" data-anim="decode">02</p>
+      <h2 class="section-title" data-anim="power">WORK</h2>
     </header>
     <div class="projects-grid" id="projects-grid">
 
       <!-- Featured -->
       <article class="project-card project-card--featured"
+               data-slug="portfolio-particle-engine"
+               data-github="https://github.com/v3rac1ty/portfolio"
+               tabindex="0" role="button" aria-label="Open Portfolio Particle Engine project">
+        <div class="project-card__top">
+          <span class="project-card__badge">Featured</span>
+          <span class="project-card__arrow" aria-hidden="true">↗</span>
+        </div>
+        <h3 class="project-card__title">Portfolio Particle Engine</h3>
+        <p class="project-card__desc">The physics and rendering system behind this site's own hero canvas - momentum-conserving collisions, inverse-square cursor gravity, a tiered particle-effect system, and the performance work behind it.</p>
+        <div class="project-card__tags">
+          <span class="tag">Canvas API</span>
+          <span class="tag">JavaScript</span>
+          <span class="tag">Physics Sim</span>
+          <span class="tag">Performance</span>
+        </div>
+      </article>
+
+      <!-- Project -->
+      <article class="project-card"
                data-slug="3d-print-ai-fail-detector"
                data-github="https://github.com/v3rac1ty"
                tabindex="0" role="button" aria-label="Open 3D Print AI Fail Detector project">
         <div class="project-card__top">
-          <span class="project-card__badge">Featured</span>
+          <span></span>
           <span class="project-card__arrow" aria-hidden="true">↗</span>
         </div>
         <h3 class="project-card__title">3D Print AI Fail Detector</h3>
@@ -542,19 +629,23 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 
       <!-- Project -->
       <article class="project-card"
-               data-slug="bilstm-covid-classifier"
-               data-github="https://github.com/v3rac1ty"
-               tabindex="0" role="button" aria-label="Open BiLSTM COVID Tweet Classifier project">
+               data-slug="esp32-racing-dashboard"
+               data-github="https://github.com/v3rac1ty/ESP-SimHub"
+               tabindex="0" role="button" aria-label="Open ESP32 Racing Dashboard project">
         <div class="project-card__top">
           <span></span>
           <span class="project-card__arrow" aria-hidden="true">↗</span>
         </div>
-        <h3 class="project-card__title">BiLSTM COVID Tweet Classifier</h3>
-        <p class="project-card__desc">PyTorch BiLSTM (851k params) classifying COVID-19 tweets. 76.8% accuracy on held-out test set with custom tokenization pipeline.</p>
+        <h3 class="project-card__title">ESP32 Racing Dashboard</h3>
+        <p class="project-card__desc">F1-style sim racing DDU merged into ESP-SimHub as a real feature (ARQ transport + Custom Serial Protocol), on a custom through-hole PCB with an ILI9488/XPT2046 display and dual PWM wind-simulation fans.</p>
         <div class="project-card__tags">
-          <span class="tag">PyTorch</span>
-          <span class="tag">BiLSTM</span>
-          <span class="tag">NLP</span>
+          <span class="tag">C++</span>
+          <span class="tag">ESP32</span>
+          <span class="tag">Embedded</span>
+          <span class="tag">TFT_eSPI</span>
+          <span class="tag">SimHub</span>
+          <span class="tag">PlatformIO</span>
+          <span class="tag">KiCad</span>
         </div>
       </article>
 
@@ -636,29 +727,21 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 
       <!-- Project -->
       <article class="project-card"
-               data-slug="esp32-racing-dashboard"
+               data-slug="bilstm-covid-classifier"
                data-github="https://github.com/v3rac1ty"
-               tabindex="0" role="button" aria-label="Open ESP32 Racing Dashboard project">
+               tabindex="0" role="button" aria-label="Open BiLSTM COVID Tweet Classifier project">
         <div class="project-card__top">
           <span></span>
           <span class="project-card__arrow" aria-hidden="true">↗</span>
         </div>
-        <h3 class="project-card__title">ESP32 Racing Dashboard</h3>
-        <p class="project-card__desc">Sim racing DDU on an ESP32 WROOM + ILI9488 480×320 SPI display. Parses live SimHub telemetry at 30 Hz — rendering RPM bar, lap times, tyre temps, delta, and driver aids bare-metal in C++.</p>
+        <h3 class="project-card__title">BiLSTM COVID Tweet Classifier</h3>
+        <p class="project-card__desc">PyTorch BiLSTM (851k params) classifying COVID-19 tweets. 76.8% accuracy on held-out test set with custom tokenization pipeline.</p>
         <div class="project-card__tags">
-          <span class="tag">C++</span>
-          <span class="tag">ESP32</span>
-          <span class="tag">Embedded</span>
-          <span class="tag">TFT_eSPI</span>
-          <span class="tag">SimHub</span>
-          <span class="tag">PlatformIO</span>
+          <span class="tag">PyTorch</span>
+          <span class="tag">BiLSTM</span>
+          <span class="tag">NLP</span>
         </div>
       </article>
-
-      <!-- Add-project placeholder -->
-      <div class="project-card project-card--add" aria-hidden="true">
-        <p>+ ADD PROJECT<br>See comment above</p>
-      </div>
 
     </div>
   </div>
@@ -668,8 +751,8 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 <section id="experience" class="reveal">
   <div class="container">
     <header class="section-header">
-      <p class="section-number">03</p>
-      <h2 class="section-title">EXPERIENCE</h2>
+      <p class="section-number" data-anim="decode">03</p>
+      <h2 class="section-title" data-anim="power">EXPERIENCE</h2>
     </header>
     <div class="exp-list">
 
@@ -721,8 +804,8 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 <section id="contact" class="reveal">
   <div class="container">
     <header class="section-header">
-      <p class="section-number">04</p>
-      <h2 class="section-title">CONTACT</h2>
+      <p class="section-number" data-anim="decode">04</p>
+      <h2 class="section-title" data-anim="power">CONTACT</h2>
     </header>
     <div class="contact__layout">
       <div>
@@ -781,83 +864,124 @@ section{padding:clamp(5rem,11vh,8rem) 0}
 
 <!-- marked.js - required for markdown rendering in project panels -->
 <script src="https://cdn.jsdelivr.net/npm/marked@13.0.3/marked.min.js" defer></script>
-<script>
+<script defer>
 (function () {
   'use strict';
 
-  /* Owner dev mode */
-  (function () {
-    var params = new URLSearchParams(window.location.search);
-    if (!params.has('dev')) return;
-
-    var host = window.location.hostname;
-    var isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
-    var sessionUnlocked = false;
-    try {
-      sessionUnlocked = window.sessionStorage.getItem('dev-unlocked') === '1';
-    } catch (_) {}
-
-    // Short owner code gate for non-local hosts. This is deterrence, not full auth.
-    var unlockCode = params.get('code') || '';
-    var canUnlock = unlockCode === 'rv-dev-2026';
-
-    if (isLocalHost || sessionUnlocked || canUnlock) {
-      document.body.classList.add('dev-mode');
-      try { window.sessionStorage.setItem('dev-unlocked', '1'); } catch (_) {}
-    }
-
-    // Remove dev params so they are not left in copied/shared URLs.
-    params.delete('dev');
-    params.delete('code');
-    var next = window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash;
-    window.history.replaceState(null, '', next);
-  })();
+  /* Coalesce high-frequency events (scroll/resize) down to one call per frame.
+     Scroll can fire several times per frame, and these handlers read layout via
+     getBoundingClientRect - running them per event forces repeated synchronous
+     layout and is the main source of scroll jank. */
+  function rafThrottle(fn) {
+    var queued = false;
+    return function () {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(function () { queued = false; fn(); });
+    };
+  }
 
   /* Hero comet canvas */
   (function () {
     const canvas = document.getElementById('hero-canvas');
     const ctx    = canvas.getContext('2d');
+    // Overlay used only for text damage (see #hero-fx). It shares the comet canvas's
+    // coordinate space exactly, so a contact point computed against the field can be
+    // drawn on either layer without conversion.
+    const fx     = document.getElementById('hero-fx');
+    const fctx   = fx ? fx.getContext('2d') : null;
 
     let W = 0, H = 0;
     let mouseX = -9999, mouseY = -9999;
     let scrollOpacity = 1;
 
-    const ACCENT_RGB  = '255, 184, 0';
-    const ACCENT      = `rgba(${ACCENT_RGB},`;
-    const MAX         = 50;
+    // Accent is 255,184,0 - each comet picks its own shade around it (see Particle)
+    // Population scales with the hero's area so a phone does not inherit a desktop-density
+    // field and a large display does not look empty. Resolved once, at first layout:
+    // recomputing it mid-resize would mean mass spawns and deaths on every drag of the
+    // window edge, which is exactly the churn the rescaling below exists to avoid.
+    const AREA_PER_COMET = 16000;          // px^2 of hero per comet
+    const MIN_COMETS     = 26;             // floor, so a small phone still has a field
+    const MAX_COMETS     = 130;            // ceiling; 160 benchmarked at 90% frame headroom
+    let   MAX            = 0;              // set by resizeCanvas on its first run
+    // Area sizes the field, but area says nothing about how fast the machine drawing it
+    // is - the same hero costs very different amounts on a discrete GPU and on integrated
+    // graphics. So the population is also governed by measured frame pacing: if frames
+    // consistently run long, comets stop being replaced as they leave until the field is
+    // light enough to keep pace, and it refills once there is headroom again.
+    // The yardstick is the shortest interval ever seen rather than a fixed 16.7ms, so a
+    // 30Hz or 120Hz display calibrates itself instead of being judged against 60Hz.
+    const PERF_WINDOW  = 60;               // frames per decision
+    const PERF_SHED_AT = 1.55;             // over baseline -> struggling
+    const PERF_RECOVER = 1.18;             // under baseline -> room to spare
+    const PERF_STEP    = 8;                // comets added or removed per decision
+    let   perfBase     = Infinity;
+    let   perfSum      = 0;
+    let   perfCount    = 0;
+    let   liveMax      = 0;                // population target now, never above MAX
     const TRAIL_LEN   = 32;
+    // Trails are stroked as a polyline through TRAIL_LEN recorded points, but a comet
+    // drifting at START_SPEED lays those 32 points down inside about 8px - so the stroke
+    // spends 31 segments redrawing what is visually one short dash. Points closer together
+    // than this are folded into the previous one, which at these line widths is not a
+    // visible difference and cuts most of the trail geometry in the common (slow) case.
+    // The newest point is always kept, so the trail still reaches the comet exactly.
+    const TRAIL_MIN2  = 2.25;              // 1.5px, squared
     const MOUSE_R     = 560;
     const MOUSE_R2    = MOUSE_R * MOUSE_R;
     const LINE_R      = 420;
     const LINE_R2     = LINE_R * LINE_R;
+    // Inverse-square attraction: slow comets fall into orbit, and anything the cursor
+    // whips past escape velocity keeps its speed and leaves the field for good.
     const GRAV        = 2200;
+    const MAX_SPEED   = 4.5;               // ceiling so repeated slingshots can't launch comets
+    const MAX_SPEED2  = MAX_SPEED * MAX_SPEED;
     const MASS_REF_R  = 3.5;
+    const START_SPEED = 0.26;              // comets drift in slowly - only the cursor speeds them up
+    const EDGE_MARGIN = 60;                // comets live until they cross this far past an edge
     const GRID_STEP   = 36;
     const GRID_BEND   = 48000;
     const GRID_SOFT2  = 55 * 55;           // pre-squared softening constant
     const GRID_DEFR2  = 320 * 320;         // skip deformation beyond this dist²
     const GRID_BUCKETS = 64;               // higher bucket count = smoother twinkle transitions
-    const MAX_SPARKS  = 36;
+    const MAX_SPARKS  = 100;  // denser field means more comets reaching the cursor
     const EXPLOSION_COOLDOWN_MS = 45;
     const particles   = [];
     const explosions  = [];
+    const crits       = [];   // critical-hit shockwaves, capped at MAX_CRITS
+    const bounces     = [];   // ordinary-collision sparks, capped at MAX_BOUNCES
+    const shards      = [];   // critical-death fragments, capped at MAX_SHARDS
+    const blackHoles  = [];   // cursor-kill voids, capped at MAX_BLACKHOLES
+    const ghosts      = [];   // fading trail remnants left behind by any death, capped at MAX_GHOSTS
     let lastExplosionAt = -1e9;
     let   grid        = [];
-    // Pre-allocated grid render buffers (no per-frame GC)
-    let   gridBuf     = new Float32Array(0);
+    // Pre-allocated grid render buffers (no per-frame GC).
+    // Dots are grouped by alpha bucket via a counting sort so each bucket needs only
+    // one fill(). The buffers are sized to the dot count, not buckets x dots - the old
+    // layout reserved a worst-case slot for every dot in every bucket, which at desktop
+    // size meant ~600 KB held permanently to store ~1200 positions.
+    let   gridPos     = new Float32Array(0);   // x,y per dot, in dot order
+    let   gridBucket  = new Uint8Array(0);     // alpha bucket per dot (GRID_BUCKETS <= 256)
+    let   gridOrder   = new Int32Array(0);     // dot indices sorted by bucket
     const bucketCount = new Int32Array(GRID_BUCKETS);
+    const bucketStart = new Int32Array(GRID_BUCKETS);
 
-    // Spark (explosion fragment)
-    function Spark(x, y) {
+    // Spark (explosion fragment) - tinted to match the comet that popped, rather than
+    // a generic white flash, so the burst reads as that comet breaking apart.
+    // `boost` scales speed/size/life up for the bigger critical-death variant below;
+    // omitted (1) it is the ordinary pop.
+    function Spark(x, y, rgb, boost) {
+      boost = boost || 1;
       const a = Math.random() * Math.PI * 2;
-      const s = 1.2 + Math.random() * 2.8;
+      const s = (1.2 + Math.random() * 2.8) * boost;
       this.x = x; this.y = y;
       this.vx = Math.cos(a) * s;
       this.vy = Math.sin(a) * s;
-      this.r       = 0.8 + Math.random() * 1.4;
-      this.maxLife = 220 + Math.random() * 180;
+      this.r       = (0.8 + Math.random() * 1.4) * Math.sqrt(boost);
+      this.maxLife = (220 + Math.random() * 180) * (1 + (boost - 1) * 0.25);
       this.age     = 0;
       this.alive   = true;
+      this.fillCol = `rgba(${rgb || '255, 255, 255'},`;   // cached prefix, see Particle
     }
     Spark.prototype.update = function (dt) {
       this.age += dt;
@@ -865,16 +989,25 @@ section{padding:clamp(5rem,11vh,8rem) 0}
       this.vx *= 0.91; this.vy *= 0.91;
       this.x += this.vx; this.y += this.vy;
     };
-    Spark.prototype.draw = function () {
+    // `c` targets a layer: comet-field sparks draw to the main canvas, sparks thrown off
+    // a shattered glyph draw to the overlay so they are not occluded by neighbouring text.
+    Spark.prototype.draw = function (c) {
+      c = c || ctx;
       const t = 1 - this.age / this.maxLife;
-      ctx.globalAlpha = t * t * 0.92 * scrollOpacity;
-      ctx.fillStyle   = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.r * t, 0, Math.PI * 2);
-      ctx.fill();
+      c.globalAlpha = t * t * 0.92 * scrollOpacity;
+      c.fillStyle   = this.fillCol + '1)';
+      c.beginPath();
+      c.arc(this.x, this.y, this.r * t, 0, Math.PI * 2);
+      c.fill();
     };
 
-    function spawnExplosion(x, y) {
+    // `big` is the amplified burst used when a critical hit is also the killing blow -
+    // more fragments, thrown harder, so a critical-death pop is visibly bigger than an
+    // ordinary one instead of looking identical to it.
+    // `sizeF` is the dying comet's mass (r / MASS_REF_R, so ~0.57-1.43): a big comet
+    // breaks into more and larger fragments than a small one, so the pop reads as the
+    // size of the thing that just died.
+    function spawnExplosion(x, y, rgb, big, sizeF) {
       const now = performance.now();
       if (now - lastExplosionAt < EXPLOSION_COOLDOWN_MS) return;
       lastExplosionAt = now;
@@ -882,16 +1015,382 @@ section{padding:clamp(5rem,11vh,8rem) 0}
       const slots = MAX_SPARKS - explosions.length;
       if (slots <= 0) return;
 
-      const n = Math.min(slots, 4 + Math.floor(Math.random() * 3));
-      for (let i = 0; i < n; i++) explosions.push(new Spark(x, y));
+      const size  = sizeF || 1;
+      const base  = big ? 9 : 4;
+      const range = big ? 5 : 3;
+      const raw   = (base + Math.floor(Math.random() * range)) * size;
+      const n     = Math.min(slots, Math.max(2, Math.round(raw)));
+      const boost = (big ? 1.6 : 1) * size;
+      for (let i = 0; i < n; i++) explosions.push(new Spark(x, y, rgb, boost));
+    }
+
+    // Critical-hit burst: a hit landing on an already-cracked spot. Reads as a sharp
+    // shockwave rather than the soft spray of a normal pop - an expanding ring, radial
+    // shards thrown off the fracture, and a white-hot core flash at the moment of impact.
+    // `big` is the critical-DEATH variant (the crit that finished the comet off): a
+    // second, delayed ring, more shards, and a wider flash - visibly heavier than the
+    // small non-lethal version so a killing crit reads as a distinct event.
+    // `sizeF` is the comet's mass, so the shockwave from a large comet is wider than
+    // one from a small comet even at the same tier.
+    function CritBurst(x, y, rgb, big, sizeF) {
+      this.x = x; this.y = y;
+      this.age     = 0;
+      this.big     = !!big;
+      this.maxLife = this.big ? 700 : 400;
+      this.alive   = true;
+      this.col     = `rgba(${rgb || '255, 255, 255'},`;
+      this.spin    = Math.random() * Math.PI * 2;   // shards point somewhere new each time
+      this.scale   = (this.big ? 1.7 : 1) * (sizeF || 1);
+    }
+    CritBurst.prototype.update = function (dt) {
+      this.age += dt;
+      if (this.age >= this.maxLife) this.alive = false;
+    };
+    // `c` targets a layer, as with Spark: a crit landing on a glyph draws to the overlay
+    // so the shockwave sits on the letter rather than behind it.
+    CritBurst.prototype.draw = function (c) {
+      c = c || ctx;
+      const t     = this.age / this.maxLife;    // 0 -> 1
+      const fade  = (1 - t) * (1 - t);
+      const scale = this.scale;                 // tier x comet size, baked at spawn
+      const R     = (3 + t * 21) * scale;
+      const col   = this.col + '1)';
+
+      // Shockwave ring
+      c.globalAlpha = fade * scrollOpacity;
+      c.strokeStyle = col;
+      c.lineWidth   = Math.max(0.4, (this.big ? 3.2 : 2.4) * (1 - t));
+      c.beginPath();
+      c.arc(this.x, this.y, R, 0, Math.PI * 2);
+      c.stroke();
+
+      // Second, trailing ring - only on a critical death, gives it visible weight
+      // beyond just being a scaled-up copy of the small burst
+      if (this.big) {
+        const t2 = Math.max(0, t - 0.18);
+        const R2 = (3 + t2 * 21) * scale * 0.72;
+        c.globalAlpha = fade * 0.7 * scrollOpacity;
+        c.lineWidth   = Math.max(0.4, 2.2 * (1 - t));
+        c.beginPath();
+        c.arc(this.x, this.y, R2, 0, Math.PI * 2);
+        c.stroke();
+      }
+
+      // Radial shards flung off the fracture
+      const shardCount = this.big ? 8 : 5;
+      const inner = R * 0.55, outer = R * 1.35;
+      c.globalAlpha = fade * 0.85 * scrollOpacity;
+      c.lineWidth   = Math.max(0.4, (this.big ? 2.1 : 1.6) * (1 - t));
+      c.beginPath();
+      for (let i = 0; i < shardCount; i++) {
+        const ang = this.spin + (i / shardCount) * Math.PI * 2;
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        c.moveTo(this.x + ca * inner, this.y + sa * inner);
+        c.lineTo(this.x + ca * outer, this.y + sa * outer);
+      }
+      c.stroke();
+
+      // White-hot core, only at the instant of impact
+      const coreCut = this.big ? 0.45 : 0.35;
+      if (t < coreCut) {
+        const ct = 1 - t / coreCut;
+        c.globalAlpha = ct * ct * 0.95 * scrollOpacity;
+        c.fillStyle   = '#ffffff';
+        c.beginPath();
+        c.arc(this.x, this.y, (this.big ? 2.4 : 1.5) + ct * (this.big ? 5.5 : 3.5), 0, Math.PI * 2);
+        c.fill();
+      }
+    };
+
+    function spawnCrit(x, y, rgb, big, sizeF) {
+      if (crits.length >= MAX_CRITS) return;
+      crits.push(new CritBurst(x, y, rgb, big, sizeF));
+    }
+
+    // Death by collision with another comet: the ordinary pop plus the small shockwave.
+    // Being destroyed by an impact should look like an impact, not like the quiet pop a
+    // comet gets from touching the cursor.
+    function spawnCometDeath(x, y, rgb, sizeF) {
+      spawnExplosion(x, y, rgb, false, sizeF);
+      spawnCrit(x, y, rgb, false, sizeF);
+    }
+
+    // Shard: a jagged fragment of the comet itself, flung outward and tumbling as it
+    // goes - triangular rather than a round dot, so a burst of these reads as broken
+    // pieces instead of just more sparks. Reserved for a critical death, so shattering
+    // stays a distinct, rarer sight rather than the default way any comet pops.
+    function Shard(x, y, rgb) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 1.6 + Math.random() * 3.6;
+      this.x = x; this.y = y;
+      this.vx = Math.cos(a) * s;
+      this.vy = Math.sin(a) * s;
+      this.rot     = Math.random() * Math.PI * 2;
+      this.spin    = (Math.random() - 0.5) * 0.5;   // radians/frame - tumble, not spin-in-place
+      this.size    = 1.7 + Math.random() * 2.6;
+      this.stretch = 0.5 + Math.random() * 0.9;     // elongation - keeps triangles irregular
+      this.maxLife = 380 + Math.random() * 280;
+      this.age     = 0;
+      this.alive   = true;
+      this.fillCol = `rgba(${rgb || '255, 255, 255'},`;
+    }
+    Shard.prototype.update = function (dt) {
+      this.age += dt;
+      if (this.age >= this.maxLife) { this.alive = false; return; }
+      this.vx *= 0.94; this.vy *= 0.94;
+      this.x  += this.vx; this.y += this.vy;
+      this.rot += this.spin;
+    };
+    Shard.prototype.draw = function () {
+      const t = 1 - this.age / this.maxLife;
+      const s = this.size * t;
+      ctx.globalAlpha = t * t * 0.95 * scrollOpacity;
+      ctx.fillStyle   = this.fillCol + '1)';
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rot);
+      ctx.beginPath();
+      ctx.moveTo(0, -s * (1 + this.stretch));
+      ctx.lineTo(s * 0.7, s * 0.6);
+      ctx.lineTo(-s * 0.6, s * 0.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    };
+
+    // Own array and cap so a shatter can never be thinned out by an unrelated pop's
+    // MAX_SPARKS budget or explosion cooldown - a critical death is rare enough that it
+    // should always render at full force.
+    function spawnShatter(x, y, rgb, sizeF) {
+      const size = sizeF || 1;
+      const want = Math.round((9 + Math.random() * 5) * size);
+      const n    = Math.min(want, MAX_SHARDS - shards.length);
+      for (let i = 0; i < n; i++) shards.push(new Shard(x, y, rgb));
+    }
+
+    // Critical-hit death: the comet shatters rather than pops - jagged fragments instead
+    // of the round spark spray, plus the big shockwave ring for the impact itself. The
+    // heaviest, most visually distinct event in the field.
+    function spawnCritDeath(x, y, rgb, sizeF) {
+      spawnShatter(x, y, rgb, sizeF);
+      spawnCrit(x, y, rgb, true, sizeF);
+    }
+
+    // Midpoint colour of the two comets involved - a bounce belongs to the contact,
+    // not to either comet individually, so it should not read as favouring one side.
+    function blendRgb(rgbA, rgbB) {
+      const a = rgbA.split(',');
+      const b = rgbB.split(',');
+      return `${(+a[0] + +b[0]) >> 1}, ${(+a[1] + +b[1]) >> 1}, ${(+a[2] + +b[2]) >> 1}`;
+    }
+
+    // Bounce: the smallest of the collision effects and by far the most common, so it
+    // has to stay quiet. Same spark spray as a cursor kill, just a handful of fragments
+    // at roughly half the throw - a scaled-down version of an effect already in the
+    // field rather than a shockwave ring, which read as far too loud for a routine
+    // knock. Sparks live in their own array so a busy cluster of bounces can never
+    // crowd death pops out of the shared MAX_SPARKS budget.
+    // `sizeF` is the pair's mean mass, `force` the impact speed over MAX_SPEED.
+    // Capacity is clamped, not all-or-nothing: the array can run near-full for stretches
+    // when the cursor is holding a crowd together, and rejecting the whole spawn just
+    // because the full request did not fit meant bounces silently stopped appearing for
+    // as long as that held. A partial spray still reads as a bounce; zero sparks does not.
+    const BOUNCE_BOOST = 0.45;   // fraction of a cursor-kill pop's throw
+    function spawnBounce(x, y, rgbA, rgbB, sizeF, force) {
+      const size = sizeF || 1;
+      const f    = Math.min(1, force || 0);
+      const want = Math.max(2, Math.min(5, Math.round((2 + f * 2) * size)));
+      const n    = Math.min(want, MAX_BOUNCES - bounces.length);
+      if (n <= 0) return;
+
+      const rgb   = blendRgb(rgbA, rgbB);
+      const boost = BOUNCE_BOOST * (0.8 + 0.5 * f) * size;
+      for (let i = 0; i < n; i++) bounces.push(new Spark(x, y, rgb, boost));
+    }
+
+    // Black hole: the cursor's pull has been an inverse-square gravity field from the
+    // start, so a comet reaching the kill radius should look consumed, not popped.
+    // destination-out briefly erases whatever this frame has already drawn inside the
+    // shrinking void, revealing the real page background rather than an approximated
+    // fill colour - correct in both themes without needing to know which is active, and
+    // it does not persist: the canvas clears next frame, so the void redraws at its new
+    // (shrinking) radius each frame rather than leaving a permanent hole.
+    function BlackHole(x, y, rgb, sizeF) {
+      this.x = x; this.y = y;
+      this.age     = 0;
+      this.maxLife = 380;
+      this.alive   = true;
+      this.col     = `rgba(${rgb || '255, 255, 255'},`;
+      this.scale   = sizeF || 1;
+      this.spin0   = Math.random() * Math.PI * 2;
+    }
+    BlackHole.prototype.update = function (dt) {
+      this.age += dt;
+      if (this.age >= this.maxLife) this.alive = false;
+    };
+    BlackHole.prototype.draw = function () {
+      const t = this.age / this.maxLife;   // 0 -> 1
+      // Opens fast, holds briefly, then collapses to a point - not a symmetric balloon.
+      const open     = Math.min(1, t / 0.22);
+      const openEase = open * open * (3 - 2 * open);
+      const collapse = t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45);
+      const R = (2.5 + 9 * this.scale) * openEase * (collapse * collapse);
+
+      if (R > 0.2) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.globalAlpha = scrollOpacity;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, R, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Accretion rim hugging the void's edge
+      const fade = 1 - t;
+      ctx.globalAlpha = fade * scrollOpacity;
+      ctx.strokeStyle = this.col + '1)';
+      ctx.lineWidth   = Math.max(0.5, 2 * (1 - t * 0.6));
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, R + 1, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Two short arcs orbiting the rim - reads as disk motion, not a static ring
+      const spin = this.spin0 + t * 9;
+      ctx.lineWidth = Math.max(0.4, 1.3 * (1 - t));
+      for (let i = 0; i < 2; i++) {
+        const a0 = spin + i * Math.PI;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, (R + 1) * 1.4, a0, a0 + 1.1);
+        ctx.stroke();
+      }
+    };
+    function spawnBlackHole(x, y, rgb, sizeF) {
+      if (blackHoles.length >= MAX_BLACKHOLES) return;
+      blackHoles.push(new BlackHole(x, y, rgb, sizeF));
+    }
+
+    // Trail ghost: the trail a comet leaves behind should not vanish the instant the
+    // comet dies - it fades in place instead, matching exactly what was on screen the
+    // frame before. It is a frozen snapshot: copied once at the moment of death, it
+    // never moves and never reads mouseX/mouseY again, so it cannot end up looking like
+    // it is still chasing the cursor if the mouse moves away right after the kill.
+    function TrailGhost(p) {
+      this.trail     = new Float32Array(p.trail);   // copy - p may be swap-removed after this
+      this.trailHead = p.trailHead;
+      this.r         = p.r;
+      this.tint      = p.tint;
+      this.baseAlpha = p.alpha();   // fade-in/position alpha at the instant of death
+      this.age       = 0;
+      this.maxLife   = 260;
+      this.alive     = true;
+    }
+    TrailGhost.prototype.update = function (dt) {
+      this.age += dt;
+      if (this.age >= this.maxLife) this.alive = false;
+    };
+    TrailGhost.prototype.draw = function () {
+      const fade = Math.max(0, 1 - this.age / this.maxLife);
+      const a = this.baseAlpha * fade * fade;
+      if (a <= 0.002) return;
+
+      const buf     = this.trail;
+      const tailIdx = this.trailHead;
+      const headIdx = (tailIdx + TRAIL_LEN - 1) % TRAIL_LEN;
+      const s0 = tailIdx * 2, s1 = headIdx * 2;
+      const tint = this.tint;
+      const grad = ctx.createLinearGradient(buf[s0], buf[s0 + 1], buf[s1], buf[s1 + 1]);
+      grad.addColorStop(0,   `${tint}0)`);
+      grad.addColorStop(0.5, `${tint}${(a * 0.25).toFixed(2)})`);
+      grad.addColorStop(1,   `${tint}${(a * 0.85).toFixed(2)})`);
+
+      ctx.globalAlpha = scrollOpacity;
+      ctx.strokeStyle = grad;
+      ctx.lineWidth   = this.r * 0.75 * fade;   // thins as it dissipates
+      ctx.lineCap     = 'round';
+      ctx.lineJoin    = 'round';
+      ctx.beginPath();
+      let lx = buf[s0], ly = buf[s0 + 1];
+      ctx.moveTo(lx, ly);
+      for (let i = 1; i < TRAIL_LEN; i++) {
+        const idx = ((tailIdx + i) % TRAIL_LEN) * 2;
+        const px = buf[idx], py = buf[idx + 1];
+        const ddx = px - lx, ddy = py - ly;
+        if (i < TRAIL_LEN - 1 && ddx * ddx + ddy * ddy < TRAIL_MIN2) continue;
+        ctx.lineTo(px, py);
+        lx = px; ly = py;
+      }
+      ctx.stroke();
+    };
+    function spawnTrailGhost(p) {
+      if (ghosts.length >= MAX_GHOSTS) return;
+      ghosts.push(new TrailGhost(p));
+    }
+
+    // Everything positional is stored in canvas pixels, so a resize would otherwise
+    // strand the field: shrinking pushes comets past EDGE_MARGIN (mass death, then mass
+    // respawn a frame later), and growing leaves the new area empty until they drift in.
+    // Scaling every stored coordinate by the same factor as the canvas keeps the field's
+    // relative layout intact, so a resize looks like the field stretching with the page.
+    // Trails are stored as absolute points too and must be scaled with their comet, or
+    // each one would snap to a stale path. Velocities are deliberately left alone - a
+    // comet's speed is its own, not a property of the canvas.
+    function rescaleField(sx, sy) {
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.x *= sx;
+        p.y *= sy;
+        const t = p.trail;
+        for (let k = 0; k < TRAIL_LEN; k++) {
+          t[k * 2]     *= sx;
+          t[k * 2 + 1] *= sy;
+        }
+      }
+      for (let i = 0; i < explosions.length; i++) { explosions[i].x *= sx; explosions[i].y *= sy; }
+      for (let i = 0; i < crits.length;      i++) { crits[i].x      *= sx; crits[i].y      *= sy; }
+      for (let i = 0; i < bounces.length;    i++) { bounces[i].x    *= sx; bounces[i].y    *= sy; }
+      for (let i = 0; i < shards.length;     i++) { shards[i].x     *= sx; shards[i].y     *= sy; }
+      for (let i = 0; i < blackHoles.length; i++) { blackHoles[i].x *= sx; blackHoles[i].y *= sy; }
+      // Text-damage effects live on the overlay but in the same coordinate space.
+      // The glyph boxes themselves are not scaled here - they come from layout and are
+      // re-read by measureLetters() on the same resize, which is exact rather than
+      // approximated. Shards keep their travel in a separate x/y, so only the glyph
+      // origin they were thrown from moves.
+      for (let i = 0; i < letterShards.length; i++) { letterShards[i].ox *= sx; letterShards[i].oy *= sy; }
+      for (let i = 0; i < letterSparks.length; i++) { letterSparks[i].x  *= sx; letterSparks[i].y  *= sy; }
+      for (let i = 0; i < letterCrits.length;  i++) { letterCrits[i].x   *= sx; letterCrits[i].y   *= sy; }
+      for (let i = 0; i < letterRings.length;  i++) { letterRings[i].x   *= sx; letterRings[i].y   *= sy; }
+      // Ghosts carry a whole frozen trail, not a single point - every stored point in it
+      // needs the same scaling a live comet's trail gets above.
+      for (let i = 0; i < ghosts.length; i++) {
+        const t = ghosts[i].trail;
+        for (let k = 0; k < TRAIL_LEN; k++) {
+          t[k * 2]     *= sx;
+          t[k * 2 + 1] *= sy;
+        }
+      }
     }
 
     function resizeCanvas() {
-      const hero = document.getElementById('hero');
-      W = canvas.width  = hero.offsetWidth  || window.innerWidth;
-      H = canvas.height = hero.offsetHeight || window.innerHeight;
+      const prevW = W, prevH = H;
+      W = canvas.width  = heroEl.offsetWidth  || window.innerWidth;
+      H = canvas.height = heroEl.offsetHeight || window.innerHeight;
+      if (fx) { fx.width = W; fx.height = H; }
+
+      // Population is a function of area, fixed at the first real layout
+      if (!MAX && W > 0 && H > 0) {
+        MAX = Math.max(MIN_COMETS,
+                       Math.min(MAX_COMETS, Math.round((W * H) / AREA_PER_COMET)));
+        liveMax = MAX;
+      }
+
+      if (prevW > 0 && prevH > 0 && (prevW !== W || prevH !== H)) {
+        rescaleField(W / prevW, H / prevH);
+      }
+
       initGrid();
       syncHeroRect();
+      measureLetters();   // glyph boxes are layout-derived and move with the hero
     }
 
     function initGrid() {
@@ -918,8 +1417,10 @@ section{padding:clamp(5rem,11vh,8rem) 0}
           ? 1
           : Math.max(0, 1 - (by - fadeTop) / fadeZone);
       }
-      // Pre-allocate render buffer: 2 floats (x,y) × dots × buckets
-      gridBuf = new Float32Array(GRID_BUCKETS * grid.length * 2);
+      // Pre-allocate render buffers: sized to the dot count, not buckets x dots
+      gridPos    = new Float32Array(grid.length * 2);
+      gridBucket = new Uint8Array(grid.length);
+      gridOrder  = new Int32Array(grid.length);
     }
 
     function drawGrid(ts) {
@@ -953,28 +1454,44 @@ section{padding:clamp(5rem,11vh,8rem) 0}
           }
         }
 
-        // Quantise alpha to bucket, store position
-        const b   = Math.min(GRID_BUCKETS - 1, (alpha * GRID_BUCKETS) | 0);
-        const off = (b * grid.length + bucketCount[b]) * 2;
-        gridBuf[off]     = rx;
-        gridBuf[off + 1] = ry;
+        // Quantise alpha to a bucket; position stays in dot order for now
+        const b = Math.min(GRID_BUCKETS - 1, (alpha * GRID_BUCKETS) | 0);
+        gridPos[i * 2]     = rx;
+        gridPos[i * 2 + 1] = ry;
+        gridBucket[i]      = b;
         bucketCount[b]++;
       }
 
-      // One fill() per non-empty bucket - O(GRID_BUCKETS) draw calls total
+      // Counting sort: prefix-sum the counts into run offsets, then scatter each dot
+      // index into its bucket's run. bucketStart doubles as the write cursor (it is
+      // rebuilt from bucketCount every frame, so consuming it here is safe).
+      let running = 0;
+      for (let b = 0; b < GRID_BUCKETS; b++) {
+        bucketStart[b] = running;
+        running += bucketCount[b];
+      }
+      for (let i = 0; i < grid.length; i++) {
+        if (grid[i].posAlpha <= 0) continue;
+        gridOrder[bucketStart[gridBucket[i]]++] = i;
+      }
+
+      // One fill() per non-empty bucket - O(GRID_BUCKETS) draw calls total.
+      // Runs are contiguous and in bucket order, so a running offset locates each.
       ctx.fillStyle = '#ffffff';
+      let runStart = 0;
       for (let b = 0; b < GRID_BUCKETS; b++) {
         const count = bucketCount[b];
         if (count === 0) continue;
         ctx.globalAlpha = (b + 0.5) / GRID_BUCKETS;
         ctx.beginPath();
-        const base = b * grid.length * 2;
-        for (let i = 0; i < count; i++) {
-          const x = gridBuf[base + i * 2], y = gridBuf[base + i * 2 + 1];
+        for (let k = 0; k < count; k++) {
+          const idx = gridOrder[runStart + k] * 2;
+          const x = gridPos[idx], y = gridPos[idx + 1];
           ctx.moveTo(x + 1.1, y);   // moveTo prevents hairlines between arcs
           ctx.arc(x, y, 1.1, 0, Math.PI * 2);
         }
         ctx.fill();
+        runStart += count;
       }
     }
 
@@ -983,57 +1500,81 @@ section{padding:clamp(5rem,11vh,8rem) 0}
       this.x = sx + (Math.random() - 0.5) * 14;
       this.y = sy + (Math.random() - 0.5) * 14;
 
-      const spd   = 0.30 + Math.random() * 0.60;
-      const angle = Math.PI * 0.25 + (Math.random() - 0.5) * 0.46;
-      this.bvx = Math.cos(angle) * spd;
-      this.bvy = Math.sin(angle) * spd;
-      this.vx  = this.bvx;
-      this.vy  = this.bvy;
+      // Free drift in any direction - no preferred heading, no restoring force.
+      // Always slow: speed is something the cursor gives them, never something they start with.
+      const spd   = 0.04 + Math.random() * (START_SPEED - 0.04);
+      const angle = Math.random() * Math.PI * 2;
+      this.vx = Math.cos(angle) * spd;
+      this.vy = Math.sin(angle) * spd;
 
-      this.r       = 2 + Math.random() * 3;
-      this.maxLife = 9000 + Math.random() * 8000;
-      this.age     = 0;
-      this.alive   = true;
+      this.r     = 2 + Math.random() * 3;
+      this.mass  = this.r / MASS_REF_R;   // shared by the gravity pull and collision impulses
+      this.age   = 0;      // fade-in only - lifetime is decided by the boundary, not the clock
+      this.alive = true;
 
-      this.sPhase = Math.random() * Math.PI * 2;
-      this.sFreq  = 0.5 + Math.random() * 0.7;
-      this.sAmp   = 0.08 + Math.random() * 0.16;
+      // Health scales with mass (size), so bigger comets survive more collisions.
+      // cracks are scar marks left at each impact point, drawn until the comet dies.
+      this.maxHealth = HEALTH_PER_MASS * this.mass;
+      this.health    = this.maxHealth;
+      this.cracks    = [];   // {ax, ay: unit dir from centre, hits: times struck there}
 
-      // Pre-cache perpendicular unit vector (never changes per particle)
-      const ibl  = 1 / Math.hypot(this.bvx, this.bvy);
-      this.bpx   = -this.bvy * ibl;
-      this.bpy   =  this.bvx * ibl;
+      // Shade variation: wide spread across the orange family - deep red-ember through
+      // amber to pale gold. R is no longer pinned to 255 so the deep end reads as a
+      // genuinely different hue, not just a dimmer version of the same one.
+      const tint = Math.random();   // 0 = deep ember, 1 = pale gold
+      const r    = Math.max(215, Math.min(255, Math.round(228 + tint * 27 + (Math.random() - 0.5) * 14)));
+      const g    = Math.max(70,  Math.min(235, Math.round(80  + tint * 150 + (Math.random() - 0.5) * 24)));
+      const b    = Math.max(0,   Math.min(150, Math.round(tint * tint * 130 + Math.random() * 30)));
+      this.rgb     = `${r}, ${g}, ${b}`;
+      this.headRgb = `${Math.min(255, r + 20)}, ${Math.min(255, g + 34)}, ${Math.min(255, b + 48)}`;
+      // Colour never changes, so the constant prefix of every rgba() string this comet
+      // builds each frame is cached once here instead of being re-concatenated 60x/sec.
+      this.tint     = `rgba(${this.rgb},`;
+      this.headTint = `rgba(${this.headRgb},`;
+      this.lineCol  = `rgba(${this.rgb},1)`;
 
       // Ring buffer: Float32Array avoids object allocation & shift() O(n)
       this.trail = new Float32Array(TRAIL_LEN * 2);
       this.trailHead = 0;   // index of oldest slot
+      this.resetTrail();
+    }
+
+    // Collapse the whole trail onto the comet's current position. Used at birth, and
+    // after anything that moves a comet discontinuously - a trail is a record of where it
+    // travelled, so leaving the old points behind after a jump draws a streak across
+    // ground the comet never crossed.
+    Particle.prototype.resetTrail = function () {
       for (let i = 0; i < TRAIL_LEN; i++) {
         this.trail[i * 2]     = this.x;
         this.trail[i * 2 + 1] = this.y;
       }
-    }
+    };
+
+    // Index of an existing crack facing within CRIT_COS of (nx, ny), or -1.
+    // Cracks store a unit direction from the comet's centre, so a dot product is the
+    // whole test - no trig, and at most MAX_CRACKS iterations.
+    Particle.prototype.crackNear = function (nx, ny) {
+      for (let i = 0; i < this.cracks.length; i++) {
+        const c = this.cracks[i];
+        if (c.ax * nx + c.ay * ny > CRIT_COS) return i;
+      }
+      return -1;
+    };
 
     Particle.prototype.alpha = function () {
-      const fi = 600, fo = 1200;
-      let a;
-      if (this.age < fi)                a = this.age / fi;
-      else if (this.age > this.maxLife - fo) a = (this.maxLife - this.age) / fo;
-      else a = 1;
-      // Fade out as comet drifts into the next section
-      const fadeStart = H * 0.72;
-      const posFade   = this.y < fadeStart ? 1 : Math.max(0, 1 - (this.y - fadeStart) / (H * 0.28));
+      const fi = 600;
+      const a  = this.age < fi ? this.age / fi : 1;   // fade in only - no timed fade-out
+      // Fade out as comet drifts into the next section. Kept to a narrow band at the very
+      // bottom so comets stay visible for nearly the whole hero rather than loitering unseen.
+      const fadeStart = H * 0.86;
+      const posFade   = this.y < fadeStart ? 1 : Math.max(0, 1 - (this.y - fadeStart) / (H * 0.14));
       return a * posFade;
     };
 
     Particle.prototype.update = function (dt) {
       this.age += dt;
-      if (this.age >= this.maxLife) { this.alive = false; return; }
 
-      // Sine-wave drift - use pre-cached perpendicular, no per-frame hypot
-      const t   = this.age / 1000;
-      const sw  = Math.sin(this.sPhase + t * this.sFreq) * this.sAmp;
-      const tvx = this.bvx + this.bpx * sw;
-      const tvy = this.bvy + this.bpy * sw;
+      const k = dt / 16.667;   // frame-rate normalisation
 
       // Gravitational attraction - squared-distance guard avoids sqrt when far away
       const mdx = this.x - mouseX;
@@ -1043,20 +1584,36 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         const mdst = Math.sqrt(md2);
         const distRatio = md2 / MOUSE_R2;
         const longRangeBoost = 1 + 0.7 * distRatio;
-        const massFactor = this.r / MASS_REF_R;
-        const f    = Math.min((GRAV * massFactor / md2) * longRangeBoost, 3.0);   // include comet mass (size)
-        this.vx -= (mdx / mdst) * f * 0.042;
-        this.vy -= (mdy / mdst) * f * 0.042;
-        if (mdst < 11) { spawnExplosion(this.x, this.y); this.alive = false; return; }
+        const f    = Math.min((GRAV * this.mass / md2) * longRangeBoost, 3.0);   // include comet mass (size)
+        this.vx -= (mdx / mdst) * f * 0.042 * k;
+        this.vy -= (mdy / mdst) * f * 0.042 * k;
+        if (mdst < 11) {
+          spawnBlackHole(this.x, this.y, this.headRgb, this.mass);
+          spawnTrailGhost(this);
+          this.alive = false;
+          return;
+        }
       }
 
-      this.vx += (tvx - this.vx) * 0.026;
-      this.vy += (tvy - this.vy) * 0.026;
-      this.x  += this.vx;
-      this.y  += this.vy;
+      // Vacuum: nothing else touches the velocity, so a comet that was swung into an
+      // orbit keeps that trajectory once the cursor moves away, and one flung past escape
+      // velocity keeps that speed all the way out. Only the ceiling ever intervenes.
+      const sp2 = this.vx * this.vx + this.vy * this.vy;
+      if (sp2 > MAX_SPEED2) {
+        const s = MAX_SPEED / Math.sqrt(sp2);
+        this.vx *= s;
+        this.vy *= s;
+      }
 
-      // Kill particles that have drifted well off-canvas (no point tracking them)
-      if (this.x > W + 60 || this.y > H + 60) { this.alive = false; return; }
+      this.x += this.vx * k;
+      this.y += this.vy * k;
+
+      // Crossing the boundary is the only way a comet ends other than hitting the cursor
+      if (this.x < -EDGE_MARGIN || this.x > W + EDGE_MARGIN ||
+          this.y < -EDGE_MARGIN || this.y > H + EDGE_MARGIN) {
+        this.alive = false;
+        return;
+      }
 
       // O(1) ring-buffer trail update
       this.trail[this.trailHead * 2]     = this.x;
@@ -1076,10 +1633,11 @@ section{padding:clamp(5rem,11vh,8rem) 0}
       const hx = buf[headIdx * 2], hy = buf[headIdx * 2 + 1];
 
       // Gradient trail - no shadowBlur (expensive on long paths)
+      const tint = this.tint;
       const grad = ctx.createLinearGradient(tx, ty, hx, hy);
-      grad.addColorStop(0,   `${ACCENT} 0)`);
-      grad.addColorStop(0.5, `${ACCENT} ${(a * 0.25).toFixed(2)})`);
-      grad.addColorStop(1,   `${ACCENT} ${(a * 0.85).toFixed(2)})`);
+      grad.addColorStop(0,   `${tint}0)`);
+      grad.addColorStop(0.5, `${tint}${(a * 0.25).toFixed(2)})`);
+      grad.addColorStop(1,   `${tint}${(a * 0.85).toFixed(2)})`);
 
       ctx.globalAlpha = scrollOpacity;
       ctx.shadowBlur  = 0;
@@ -1088,12 +1646,17 @@ section{padding:clamp(5rem,11vh,8rem) 0}
       ctx.lineCap     = 'round';
       ctx.lineJoin    = 'round';
       ctx.beginPath();
-      // Walk ring buffer oldest → newest
+      // Walk ring buffer oldest → newest, folding away sub-pixel steps (see TRAIL_MIN2)
       const s0 = tailIdx * 2;
-      ctx.moveTo(buf[s0], buf[s0 + 1]);
+      let lx = buf[s0], ly = buf[s0 + 1];
+      ctx.moveTo(lx, ly);
       for (let i = 1; i < TRAIL_LEN; i++) {
         const idx = ((tailIdx + i) % TRAIL_LEN) * 2;
-        ctx.lineTo(buf[idx], buf[idx + 1]);
+        const px = buf[idx], py = buf[idx + 1];
+        const ddx = px - lx, ddy = py - ly;
+        if (i < TRAIL_LEN - 1 && ddx * ddx + ddy * ddy < TRAIL_MIN2) continue;
+        ctx.lineTo(px, py);
+        lx = px; ly = py;
       }
       ctx.stroke();
 
@@ -1102,20 +1665,65 @@ section{padding:clamp(5rem,11vh,8rem) 0}
       const mdy = hy - mouseY;
       const md2 = mdx * mdx + mdy * mdy;
       const glowBoost = md2 < MOUSE_R2 ? (1 - md2 / MOUSE_R2) * 0.4 : 0;
-      ctx.shadowBlur  = 10 + glowBoost * 8;
-      ctx.shadowColor = `rgba(${ACCENT_RGB}, ${0.5 + glowBoost})`;
-      ctx.fillStyle   = `rgba(255,210,60,${(a * (0.88 + glowBoost * 0.12)).toFixed(2)})`;
+      // Glow must fade with `a` too - it used to stay at full alpha even as the fill
+      // faded to nothing, leaving a bright halo hanging around a near-invisible comet
+      // (looked like the tail was showing through a comet that should be gone).
+      ctx.shadowBlur  = (10 + glowBoost * 8) * a;
+      ctx.shadowColor = `${this.tint}${((0.5 + glowBoost) * a).toFixed(2)})`;
+      ctx.fillStyle   = `${this.headTint}${(a * (0.88 + glowBoost * 0.12)).toFixed(2)})`;
       ctx.beginPath();
       ctx.arc(hx, hy, this.r * (1 + glowBoost * 0.35), 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;   // explicit reset - faster than restore()
+
+      // Cracks: scar marks left at each collision's contact point, fixed to the
+      // comet's own surface (comet-local unit direction, re-projected onto its
+      // current position/radius every frame so they travel and scale with it).
+      if (this.cracks.length) {
+        // One colour for all of this comet's cracks (one string per comet, not per
+        // crack); repeat hits on the same spot show as a wider, longer fracture.
+        ctx.strokeStyle = `rgba(255, 60, 40, ${(a * 0.85).toFixed(2)})`;
+        ctx.lineCap     = 'round';
+        for (let i = 0; i < this.cracks.length; i++) {
+          const c     = this.cracks[i];
+          const grow  = 1 + (c.hits - 1) * 0.35;
+          const len   = this.r * 0.6 * grow;
+          const cx    = hx + c.ax * this.r * 0.8;
+          const cy    = hy + c.ay * this.r * 0.8;
+          ctx.lineWidth = Math.max(1, this.r * 0.22 * (1 + (c.hits - 1) * 0.3));
+          // perpendicular to the impact direction - a jagged little tick, not a dot
+          const px = -c.ay, py = c.ax;
+          ctx.beginPath();
+          ctx.moveTo(cx - px * len * 0.5 - c.ax * len * 0.3, cy - py * len * 0.5 - c.ay * len * 0.3);
+          ctx.lineTo(cx + c.ax * len * 0.35, cy + c.ay * len * 0.35);
+          ctx.lineTo(cx + px * len * 0.5 - c.ax * len * 0.3, cy + py * len * 0.5 - c.ay * len * 0.3);
+          ctx.stroke();
+        }
+      }
+
+      // Health bar: deliberately understated. It only appears past HP_BAR_AT and then
+      // fades UP as damage accumulates, so a grazed comet shows almost nothing and only
+      // a badly-hurt one reads clearly. Colours stay in the accent's warm range (amber
+      // deepening to red) rather than a saturated green-to-red game HUD.
+      if (this.health < this.maxHealth * HP_BAR_AT) {
+        const frac  = Math.max(0, this.health / this.maxHealth);
+        const vis   = Math.min(1, (HP_BAR_AT - frac) / HP_BAR_AT);   // 0 at threshold, 1 at death
+        const alpha = a * vis * 0.5;
+        const bw    = this.r * 3.2;
+        const bh    = 1.3;
+        const bx    = hx - bw / 2;
+        const by    = hy - this.r - 5.5;
+        ctx.fillStyle = `rgba(255, 255, 255, ${(alpha * 0.16).toFixed(3)})`;
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillStyle = `rgba(238, ${Math.round(40 + 150 * frac)}, 45, ${alpha.toFixed(3)})`;
+        ctx.fillRect(bx, by, bw * frac, bh);
+      }
     };
 
     // Cursor lines (drawn under particles)
     function drawCursorLines() {
       if (mouseX === -9999) return;
-      // Set shared state once outside loop
-      ctx.strokeStyle = `rgba(${ACCENT_RGB},1)`;
+      // Set shared state once outside loop (stroke colour still varies per comet)
       ctx.lineWidth   = 0.65;
       ctx.setLineDash([3, 5]);
       for (let i = 0; i < particles.length; i++) {
@@ -1126,6 +1734,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         const dy      = hy - mouseY;
         const dist2   = dx * dx + dy * dy;
         if (dist2 < LINE_R2) {
+          ctx.strokeStyle = p.lineCol;
           ctx.globalAlpha = (1 - dist2 / LINE_R2) * 0.55 * p.alpha() * scrollOpacity;
           ctx.beginPath();
           ctx.moveTo(mouseX, mouseY);
@@ -1136,40 +1745,995 @@ section{padding:clamp(5rem,11vh,8rem) 0}
       ctx.setLineDash([]);   // reset dash once after loop
     }
 
-    // Spawning: spread along top 30% and left 30%
-    let lastSpawn  = 0;
-    let spawnDelay = 650;
+    // Comet-comet collisions.
+    // Impulse resolution along the contact normal: the two comets receive equal and
+    // opposite impulses, so total momentum is conserved exactly regardless of their
+    // masses. RESTITUTION is the elasticity dial - 1 is perfectly elastic (kinetic
+    // energy conserved too), 0 is perfectly inelastic (they leave the contact with the
+    // same normal velocity). 0.9 keeps bounces lively while letting dense clusters
+    // near the cursor settle instead of jittering forever.
+    const RESTITUTION = 0.9;
+    // Contact distance is (rA + rB) * this. The heads are drawn with a 10-18px glow
+    // around them, so a strict rA + rB (4-10px) reads as the two comets sinking through
+    // each other before reacting. 1.5 puts the bounce where they visually touch, and
+    // widens the cross-section enough that contacts actually happen. Set to 1 for
+    // strict circle geometry.
+    const COLLIDE_SCALE = 1.5;
+    // Damage per collision = DAMAGE_SCALE * (other comet's mass) * (closing speed).
+    // Using the OTHER comet's mass means a heavy comet barely feels hitting a light
+    // one, but a light comet takes a beating from a heavy one - the same asymmetry a
+    // real mass mismatch would produce. HEALTH_PER_MASS ties max HP to size, so bigger
+    // comets are tankier. MAX_CRACKS bounds the per-comet scar count (cheap to draw,
+    // but unbounded growth over a comet's lifetime is still unbounded growth).
+    const DAMAGE_SCALE    = 9;
+    const HEALTH_PER_MASS = 50;
+    const MAX_CRACKS      = 6;
+    const HP_BAR_AT       = 0.75;   // no bar until a comet is below this much health
+    // A scar is only left by a hit with real force behind it - idle drifting comets
+    // bump into each other constantly and those glances should scuff, not crack.
+    const CRACK_MIN_IMPACT = 0.6;   // closing speed along the normal, px/frame
+    // Critical hit: a new impact landing within ~28 degrees of an existing crack is
+    // striking ground that is already broken, so it bites far deeper.
+    const CRIT_COS         = 0.88;  // cos of the angular window
+    const CRIT_MULT        = 2.6;   // damage multiplier on a crit
+    const MAX_CRITS        = 20;    // cap on concurrent crit bursts
+    // Bounce puff: quick feedback for an ordinary hard collision that neither comet
+    // dies from. Same "hard enough to matter" bar as a crack (below it, comets are just
+    // jostling and nothing should flash), but a death always pre-empts it - that comet
+    // already has its own, bigger animation.
+    const BOUNCE_MIN_IMPACT = CRACK_MIN_IMPACT;
+    const MAX_BOUNCES       = 70;   // cap on concurrent bounce sparks (2-5 per bounce)
+    const MAX_SHARDS        = 60;   // cap on concurrent shatter fragments
+    const MAX_BLACKHOLES    = 8;    // simultaneous cursor kills are rare; small cap is plenty
+    const MAX_GHOSTS        = 24;   // fading trail remnants, one per recent death
 
-    function spawnCluster(ts) {
-      if (particles.length >= MAX) return;
-      const n = 2 + Math.floor(Math.random() * 3);
-      for (let i = 0; i < n; i++) {
-        if (particles.length >= MAX) break;
-        let sx, sy;
-        if (Math.random() < 0.5) {
-          sx = Math.random() * W * 0.32;   // along top edge
-          sy = Math.random() * H * 0.06;
-        } else {
-          sx = Math.random() * W * 0.06;   // along left edge
-          sy = Math.random() * H * 0.32;
-        }
-        particles.push(new Particle(sx, sy));
-      }
-      lastSpawn  = ts;
-      spawnDelay = 400 + Math.random() * 800;
+    /* ===== Destructible hero text =====
+       The hero copy is already split into one <span class="anim-char"> per glyph by the
+       text-intro system further down, which makes every letter an independently
+       measurable box - so each becomes a static, immovable collision body in the same
+       field the comets already live in. Immovable is the whole difference from a
+       comet-comet contact: the glyph absorbs no impulse, so the comet takes the entire
+       separation and the entire bounce, and the letter takes only damage.
+
+       Letters carry the same health/crack/crit model as comets, so a fracture on a "V"
+       means exactly what a fracture on a comet means. Break one and it shatters into
+       wedge-shaped pieces of its own glyph, then re-forms a couple of seconds later.
+
+       Under prefers-reduced-motion the text system never splits the copy, so there are
+       no .anim-char spans, no targets, and this whole subsystem stays inert - the text
+       simply cannot be damaged. That is the intended fallback, not an oversight. */
+    const LETTER_MASS         = 1.5;    // effective mass for damage dealt TO a comet
+    const LETTER_RESTITUTION  = 0.82;   // slightly deader than comet-comet - glyphs absorb
+    // Tuned so a glyph is destructible by deliberate play but not by ambient drift: at
+    // these values the big display type takes ~14 solid hits and a small mono glyph ~7,
+    // against a healing rate that undoes a stray knock long before it adds up. Aiming
+    // the cursor at one letter breaks it in a few seconds; ignoring the hero does not.
+    const LETTER_HEALTH_BASE  = 70;     // floor, so small mono glyphs are not near-free
+    const LETTER_HEALTH_SCALE = 1.35;   // extra HP per sqrt(px^2) - big display type is tankier
+    // Glyphs take damage on their own scale, not the comets' one. A comet is a small fast
+    // body hitting another small fast body head-on; a glyph is a large static target that
+    // drifting comets mostly graze. Reusing DAMAGE_SCALE here meant a letter absorbed
+    // roughly sixty clean hits while healing outran the incoming damage, so nothing ever
+    // actually broke - the shatter existed but could not be reached by playing with it.
+    // Tightening the collision bodies from the span box down to the glyph's ink cut the
+    // contact cross-section by a third to a half, which cost roughly the same again.
+    const LETTER_DAMAGE_SCALE = 44;
+    const LETTER_CRIT_R       = 0.22;   // crit window as a fraction of the glyph's short side
+    const LETTER_MAX_CRACKS   = 7;
+    const LETTER_REGEN_DELAY  = 4000;   // ms of no hits before a glyph starts healing
+    const LETTER_REGEN_MS     = 26000;  // ms for a full heal once healing begins
+    const LETTER_CRACK_FADE   = 6000;   // ms for a fracture to close while healing
+    const LETTER_RESPAWN_WAIT = 2200;   // ms a destroyed glyph stays gone
+    const LETTER_RESPAWN_ANIM = 700;    // ms of the re-forming animation
+    const MAX_LETTER_SHARDS   = 90;
+    const MAX_LETTER_SPARKS   = 60;
+
+    const letters      = [];
+    const letterShards = [];
+    const letterSparks = [];
+    const letterCrits  = [];
+    const letterRings  = [];
+    let   anyCracks    = false;   // recomputed each frame; gates the overlay draw
+    let   fxDirty      = false;   // did the overlay draw anything last frame?
+    // Union bounds of every glyph box - one cheap reject for comets nowhere near the copy
+    let lbMinX = 0, lbMinY = 0, lbMaxX = -1, lbMaxY = -1;
+
+    function rgbOf(css) {
+      const m = /(\d+)[,\s]+(\d+)[,\s]+(\d+)/.exec(css || '');
+      return m ? `${m[1]}, ${m[2]}, ${m[3]}` : '255, 255, 255';
     }
 
-    // Render loop
+    // Paints a glyph so its ink lands inside the box (0, 0, o.w, o.h) of the current
+    // transform. Shared by the fracture mask and the shatter fragments, which both need
+    // the letter drawn in exactly the position its collision body occupies.
+    // `o` is a Letter or a LetterShard's snapshot of one - the font must already be set.
+    function paintGlyph(c, o) {
+      if (o.mid) {
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText(o.ch, o.w / 2, o.h / 2);
+      } else {
+        c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+        c.fillText(o.ch, o.ox, o.oy);
+      }
+    }
+
+    // Off-screen buffer used to mask fractures to the glyph they are drawn on, and to
+    // measure glyph ink below. Grown to fit the largest glyph ever needed and reused;
+    // assigning width/height resets the canvas, so it is only ever grown, never shrunk.
+    // willReadFrequently: measureInk reads it back, which otherwise forces a GPU readback.
+    const scratch = document.createElement('canvas');
+    const sctx    = scratch.getContext('2d', { willReadFrequently: true });
+
+    // Exact ink bounds of one glyph, relative to its text origin: dx/dy from the origin
+    // and the alphabetic baseline to the ink's top-left, plus its true size.
+    //
+    // measureText's actualBoundingBox* is NOT good enough on its own. Chrome quantises it
+    // to whole pixels and rounds outward, and it rounds the right edge out more often than
+    // the left - which put every letter's collision boundary up to a pixel to the right of
+    // the glyph while the other three sides sat flush. So the reported box is used only as
+    // a search window, and the real extent comes from scanning what actually gets painted.
+    //
+    // One render + readback per distinct glyph, cached by font and character, so the whole
+    // hero costs about twenty of them once at layout rather than any per-frame work.
+    const inkCache = Object.create(null);
+    function measureInk(ch, font) {
+      const key = font + ' ' + ch;
+      const hit = inkCache[key];
+      if (hit !== undefined) return hit;
+
+      sctx.font = font;
+      const m = sctx.measureText(ch);
+      const PAD = 4;   // room for a hinted glyph to exceed its own reported bounds
+      const ox = Math.ceil(m.actualBoundingBoxLeft)   + PAD;
+      const oy = Math.ceil(m.actualBoundingBoxAscent) + PAD;
+      const w  = ox + Math.ceil(m.actualBoundingBoxRight)   + PAD;
+      const h  = oy + Math.ceil(m.actualBoundingBoxDescent) + PAD;
+      if (!(w > 0 && h > 0 && w < 4096 && h < 4096)) return (inkCache[key] = null);
+
+      if (scratch.width  < w) scratch.width  = w;
+      if (scratch.height < h) scratch.height = h;
+      sctx.globalAlpha = 1;
+      sctx.globalCompositeOperation = 'source-over';
+      sctx.clearRect(0, 0, w, h);
+      sctx.font = font;               // a resize above would have reset this
+      sctx.fillStyle    = '#ffffff';
+      sctx.textAlign    = 'left';
+      sctx.textBaseline = 'alphabetic';
+      sctx.fillText(ch, ox, oy);
+
+      const d = sctx.getImageData(0, 0, w, h).data;
+      let x0 = w, y0 = h, x1 = -1, y1 = -1;
+      for (let y = 0; y < h; y++) {
+        const row = y * w;
+        for (let x = 0; x < w; x++) {
+          if (d[(row + x) * 4 + 3] > 8) {
+            if (x < x0) x0 = x;
+            if (x > x1) x1 = x;
+            if (y < y0) y0 = y;
+            if (y > y1) y1 = y;
+          }
+        }
+      }
+      // Nothing painted: a blank or missing glyph, which cannot be a collision body
+      const res = x1 < 0 ? null : {
+        dx: x0 - ox, dy: y0 - oy, w: x1 - x0 + 1, h: y1 - y0 + 1,
+        fa: m.fontBoundingBoxAscent, fd: m.fontBoundingBoxDescent,
+      };
+      inkCache[key] = res;
+      return res;
+    }
+
+    function Letter(el, ch) {
+      this.el   = el;
+      this.ch   = ch;
+      this.root = el.closest ? el.closest('[data-anim]') : null;
+      this.x = 0; this.y = 0; this.w = 0; this.h = 0;
+      this.font = '';
+      this.col  = '#ffffff';
+      this.rgb  = '255, 255, 255';
+      // Text origin for this glyph, measured from the top-left of its own box - drawing
+      // at (ox, oy) with a left/alphabetic baseline lands the ink exactly in the box.
+      this.ox   = 0;
+      this.oy   = 0;
+      this.mid  = false;    // fallback: no ink metrics, box is the span and origin its centre
+      this.maxHealth = 0;
+      this.health    = 0;
+      this.cracks    = [];  // {x, y: glyph-local px, legs: baked fracture shape, hits, fade}
+      this.state     = 0;   // 0 alive | 1 destroyed | 2 re-forming
+      this.live      = false;  // is a collision body this frame - see updateLetters
+      this.timer     = 0;
+      this.idle      = 0;   // ms since the last hit
+    }
+
+    // Only the split hero copy is destructible. Everything else on the page is outside
+    // the canvas entirely, so there is nothing for a comet to hit.
+    function collectLetters() {
+      if (!fctx) return;
+      const nodes = document.querySelectorAll('.hero__eyebrow .anim-char, .hero__name .anim-char');
+      if (!nodes.length) return;
+      // Same spans as last time: keep the accumulated damage and just re-measure.
+      if (letters.length && letters[0].el === nodes[0]) { measureLetters(); return; }
+
+      letters.length = 0;
+      for (let i = 0; i < nodes.length; i++) {
+        const el = nodes[i];
+        const ch = el.getAttribute('data-c') || el.textContent;
+        if (!/\S/.test(ch)) continue;          // a space has no glyph to break
+        el.classList.remove('letter-dead', 'letter-respawn');
+        letters.push(new Letter(el, ch));
+      }
+      measureLetters();
+    }
+
+    // Glyph boxes come from layout, so they are read in a single batch here (on resize
+    // and at startup) rather than per frame. Health is preserved across a re-measure:
+    // resizing the window should not heal the text.
+    function measureLetters() {
+      if (!fctx || !letters.length) return;
+      const base = heroEl.getBoundingClientRect();
+
+      lbMinX = Infinity; lbMinY = Infinity; lbMaxX = -Infinity; lbMaxY = -Infinity;
+      for (let i = 0; i < letters.length; i++) {
+        const L = letters[i];
+        const r = L.el.getBoundingClientRect();
+        L.x = r.left - base.left;
+        L.y = r.top  - base.top;
+        L.w = r.width;
+        L.h = r.height;
+        if (L.w <= 0 || L.h <= 0) continue;
+
+        const cs = getComputedStyle(L.el);
+        L.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        L.col  = cs.color;
+        L.rgb  = rgbOf(cs.color);
+
+        // The span's box is NOT the letter. It is the advance width (which includes side
+        // bearings, and here also .02-.22em of letter-spacing tacked on the right) by the
+        // full line box (which at line-height .9 on an 80px face is 72px tall around ~57px
+        // of actual cap height). Colliding against that rectangle meant comets bouncing
+        // off - and leaving fractures in - empty space beside and above the glyph.
+        // measureInk gives the real painted extent, so the collision body is tightened to
+        // the letter itself.
+        const ink = measureInk(L.ch, L.font);
+        if (ink) {
+          // Locate the alphabetic baseline inside the line box: the font's content area is
+          // fontBoundingBox tall and sits centred in it (CSS half-leading).
+          const baseY = (ink.fa === undefined || ink.fd === undefined)
+            ? L.h * 0.8                              // no font metrics: rough baseline
+            : (L.h - (ink.fa + ink.fd)) / 2 + ink.fa;
+          L.x += ink.dx;              // span origin  -> ink left edge
+          L.y += baseY + ink.dy;      // line-box top -> ink top edge
+          L.w  = ink.w;
+          L.h  = ink.h;
+          L.ox = -ink.dx;             // draw here and the ink lands at the box's corner
+          L.oy = -ink.dy;
+          L.mid = false;
+        } else {
+          // Nothing measurable: keep the span box and centre the glyph in it
+          L.ox = 0; L.oy = 0; L.mid = true;
+        }
+
+        const hp = LETTER_HEALTH_BASE + LETTER_HEALTH_SCALE * Math.sqrt(L.w * L.h);
+        if (L.maxHealth <= 0) { L.maxHealth = hp; L.health = hp; }
+        else { L.health = hp * (L.health / L.maxHealth); L.maxHealth = hp; }
+
+        if (L.x < lbMinX) lbMinX = L.x;
+        if (L.y < lbMinY) lbMinY = L.y;
+        if (L.x + L.w > lbMaxX) lbMaxX = L.x + L.w;
+        if (L.y + L.h > lbMaxY) lbMaxY = L.y + L.h;
+      }
+      if (!isFinite(lbMinX)) { lbMinX = 0; lbMinY = 0; lbMaxX = -1; lbMaxY = -1; }
+    }
+
+    // A fracture's jagged shape is baked once, at the moment of impact, so it does not
+    // crawl around the glyph on every frame the way freshly-random legs would.
+    function newLetterCrack(lx, ly, nx, ny) {
+      const into = Math.atan2(-ny, -nx);   // fractures run inward, away from the contact
+      const legs = [];
+      for (let i = 0; i < 3; i++) {
+        legs.push({
+          a:    into + (Math.random() - 0.5) * 1.9,
+          len:  0.55 + Math.random() * 0.75,
+          bend: (Math.random() - 0.5) * 0.9,
+        });
+      }
+      return { x: lx, y: ly, legs: legs, hits: 1, fade: 1 };
+    }
+
+    // Index of an existing fracture within the crit window of this contact, or -1.
+    // Glyph cracks are positional (a point on a box) rather than directional the way a
+    // comet's are (a direction from a centre), so this is a radius test, not a dot product.
+    function letterCrackNear(L, cx, cy) {
+      const lx = cx - L.x, ly = cy - L.y;
+      const r  = Math.min(L.w, L.h) * LETTER_CRIT_R;
+      const r2 = r * r;
+      for (let i = 0; i < L.cracks.length; i++) {
+        const c  = L.cracks[i];
+        const dx = c.x - lx, dy = c.y - ly;
+        if (dx * dx + dy * dy < r2) return i;
+      }
+      return -1;
+    }
+
+    function spawnLetterCrit(x, y, rgb, big, sizeF) {
+      if (letterCrits.length >= MAX_CRITS) return;
+      letterCrits.push(new CritBurst(x, y, rgb, big, sizeF));
+    }
+
+    // Overlay twin of spawnBounce - same spray, drawn on the layer above the text so a
+    // knock against a glyph is not half-hidden behind it.
+    function spawnLetterBounce(x, y, rgbA, rgbB, sizeF, force) {
+      const f    = Math.min(1, force || 0);
+      const want = Math.max(2, Math.min(5, Math.round((2 + f * 2) * (sizeF || 1))));
+      const n    = Math.min(want, MAX_LETTER_SPARKS - letterSparks.length);
+      if (n <= 0) return;
+      const rgb   = blendRgb(rgbA, rgbB);
+      const boost = BOUNCE_BOOST * (0.8 + 0.5 * f) * (sizeF || 1);
+      for (let i = 0; i < n; i++) letterSparks.push(new Spark(x, y, rgb, boost));
+    }
+
+    // A fragment of a broken glyph: an angular wedge clipped out of the letter's own
+    // rendering, tumbling as it falls. Because the clip and the fillText share the
+    // fragment's local origin, each piece carries the exact part of the glyph it covered -
+    // so the letter visibly comes apart rather than being replaced by generic debris.
+    function LetterShard(L, ch, a0, a1) {
+      this.ch   = ch;
+      this.font = L.font;
+      this.col  = L.col;
+      this.ox   = L.ox;    // glyph origin within its own box (see paintGlyph)
+      this.oy   = L.oy;
+      this.mid  = L.mid;
+      this.w    = L.w;
+      this.h    = L.h;
+      this.cx   = L.x + L.w / 2;   // where the glyph was, in field coordinates
+      this.cy   = L.y + L.h / 2;
+      this.R    = Math.max(L.w, L.h) * 1.8;   // wedge reach, comfortably past the ink
+      this.a0 = a0; this.a1 = a1;
+      const mid = (a0 + a1) / 2;
+      const sp  = 0.7 + Math.random() * 2.1;
+      this.vx = Math.cos(mid) * sp;
+      this.vy = Math.sin(mid) * sp - 0.5;     // slight loft before gravity takes over
+      this.x  = 0; this.y = 0;                // displacement from the glyph's origin
+      this.rot     = 0;
+      this.spin    = (Math.random() - 0.5) * 0.075;
+      this.age     = 0;
+      this.maxLife = 620 + Math.random() * 380;
+      this.alive   = true;
+    }
+    LetterShard.prototype.update = function (dt) {
+      this.age += dt;
+      if (this.age >= this.maxLife) { this.alive = false; return; }
+      const k = dt / 16.667;
+      this.vy  += 0.055 * k;    // pieces fall away; comet debris floats, masonry does not
+      this.vx  *= 0.995;
+      this.x   += this.vx * k;
+      this.y   += this.vy * k;
+      this.rot += this.spin * k;
+    };
+    LetterShard.prototype.draw = function () {
+      const t = 1 - this.age / this.maxLife;
+      fctx.save();
+      fctx.globalAlpha = t * t * scrollOpacity;
+      fctx.translate(this.cx + this.x, this.cy + this.y);
+      fctx.rotate(this.rot);
+      fctx.beginPath();
+      fctx.moveTo(0, 0);
+      const step = (this.a1 - this.a0) / 3;
+      for (let i = 0; i <= 3; i++) {
+        const a = this.a0 + step * i;
+        fctx.lineTo(Math.cos(a) * this.R, Math.sin(a) * this.R);
+      }
+      fctx.closePath();
+      fctx.clip();
+      fctx.font      = this.font;
+      fctx.fillStyle = this.col;
+      // Local origin is the glyph's centre, so shift to its box's top-left to paint it
+      fctx.translate(-this.w / 2, -this.h / 2);
+      paintGlyph(fctx, this);
+      fctx.restore();
+    };
+
+    // Ring that collapses inward onto a re-forming glyph - the visual inverse of the
+    // shockwave that expands out of a destroyed one.
+    function RespawnRing(L) {
+      this.x = L.x + L.w / 2;
+      this.y = L.y + L.h / 2;
+      this.R = Math.max(L.w, L.h) * 1.5;
+      this.col = `rgba(${L.rgb},`;
+      this.age = 0;
+      this.maxLife = LETTER_RESPAWN_ANIM;
+      this.alive = true;
+    }
+    RespawnRing.prototype.update = function (dt) {
+      this.age += dt;
+      if (this.age >= this.maxLife) this.alive = false;
+    };
+    RespawnRing.prototype.draw = function () {
+      const t    = this.age / this.maxLife;
+      const ease = 1 - (1 - t) * (1 - t);              // quick collapse, gentle settle
+      const r    = Math.max(0.5, this.R * (1 - ease));
+      const fade = t < 0.7 ? 1 : Math.max(0, 1 - (t - 0.7) / 0.3);
+      const col  = this.col + '1)';
+
+      fctx.globalAlpha = fade * 0.8 * scrollOpacity;
+      fctx.strokeStyle = col;
+      fctx.lineWidth   = Math.max(0.5, 2 * (1 - t));
+      fctx.beginPath();
+      fctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+      fctx.stroke();
+
+      // Motes riding the ring in - the material being pulled back into place
+      fctx.fillStyle = col;
+      const spin = t * 4;
+      for (let i = 0; i < 5; i++) {
+        const a = spin + (i / 5) * Math.PI * 2;
+        fctx.beginPath();
+        fctx.arc(this.x + Math.cos(a) * r, this.y + Math.sin(a) * r, 0.4 + 1.4 * (1 - t), 0, Math.PI * 2);
+        fctx.fill();
+      }
+    };
+
+    // Destruction. The span is hidden rather than removed so its box stays in the layout -
+    // otherwise the whole line would reflow and every surviving letter would jump sideways
+    // (and their cached collision boxes would all be wrong at once).
+    function shatterLetter(L) {
+      L.health = 0;
+      L.state  = 1;
+      L.timer  = LETTER_RESPAWN_WAIT;
+      L.cracks.length = 0;
+      L.el.classList.remove('letter-respawn');
+      L.el.classList.add('letter-dead');
+
+      const ch   = L.el.textContent || L.ch;
+      const n    = 6 + Math.floor(Math.random() * 3);
+      const a0   = Math.random() * Math.PI * 2;   // wedge seam lands somewhere new each time
+      const room = Math.min(n, MAX_LETTER_SHARDS - letterShards.length);
+      for (let i = 0; i < room; i++) {
+        letterShards.push(new LetterShard(L, ch,
+          a0 + (i / n) * Math.PI * 2,
+          a0 + ((i + 1) / n) * Math.PI * 2));
+      }
+      const sparks = Math.min(7, MAX_LETTER_SPARKS - letterSparks.length);
+      for (let i = 0; i < sparks; i++) {
+        letterSparks.push(new Spark(L.x + L.w / 2, L.y + L.h / 2, L.rgb, 1.3));
+      }
+      // Shockwave scaled to the glyph, so breaking the huge display type reads heavier
+      // than breaking a 10px mono character.
+      spawnLetterCrit(L.x + L.w / 2, L.y + L.h / 2, L.rgb, true,
+                      Math.max(0.8, Math.min(2.4, Math.min(L.w, L.h) / 26)));
+    }
+
+    function respawnLetter(L) {
+      L.state  = 2;
+      L.timer  = LETTER_RESPAWN_ANIM;
+      L.health = L.maxHealth;
+      L.idle   = 0;
+      L.cracks.length = 0;
+      L.el.classList.remove('letter-dead');
+      L.el.classList.add('letter-respawn');   // guaranteed absent above, so no reflow needed
+      letterRings.push(new RespawnRing(L));
+    }
+
+    function updateLetters(dt) {
+      anyCracks = false;
+      for (let i = 0; i < letters.length; i++) {
+        const L = letters[i];
+
+        // Whether this glyph is a collision body this frame, resolved once here rather
+        // than inside the comet x letter sweep - that inner test ran up to MAX x letters
+        // times a frame (over three thousand classList reads) to answer a question that
+        // can only change once per frame.
+        L.live = L.state === 0 && L.w > 0 &&
+                 (!L.root || L.root.classList.contains('anim-play'));
+
+        if (L.state === 1) {                       // destroyed, waiting to re-form
+          L.timer -= dt;
+          if (L.timer <= 0) respawnLetter(L);
+          continue;
+        }
+        if (L.state === 2) {                       // re-forming
+          L.timer -= dt;
+          if (L.timer <= 0) { L.state = 0; L.el.classList.remove('letter-respawn'); }
+          continue;
+        }
+
+        L.idle += dt;
+        // Left alone, a glyph knits itself back together and its fractures close. Without
+        // this the copy would only ever degrade: given long enough every letter would be
+        // permanently mid-respawn, which is a worse page than the one it started as.
+        // Fractures fade on their own clock, NOT gated on health still being below max: a
+        // single light hit heals off in a fraction of a second, and gating the fade on
+        // that left the scar frozen part-way and visible for the rest of the session.
+        if (L.idle > LETTER_REGEN_DELAY) {
+          if (L.health < L.maxHealth) {
+            L.health = Math.min(L.maxHealth, L.health + L.maxHealth * dt / LETTER_REGEN_MS);
+          }
+          for (let c = L.cracks.length - 1; c >= 0; c--) {
+            L.cracks[c].fade -= dt / LETTER_CRACK_FADE;
+            if (L.cracks[c].fade <= 0) {
+              L.cracks[c] = L.cracks[L.cracks.length - 1];
+              L.cracks.pop();
+            }
+          }
+        }
+        if (L.cracks.length) anyCracks = true;
+      }
+    }
+
+    // Comet vs. glyph. The glyph is a static AABB with infinite mass: it takes the damage,
+    // the comet takes all of the separation and all of the bounce.
+    function resolveLetterCollisions() {
+      if (!letters.length || lbMaxX < lbMinX) return;
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        if (!p.alive) continue;
+
+        const reach = p.r * COLLIDE_SCALE;
+        if (p.x + reach < lbMinX || p.x - reach > lbMaxX ||
+            p.y + reach < lbMinY || p.y - reach > lbMaxY) continue;
+
+        for (let j = 0; j < letters.length; j++) {
+          const L = letters[j];
+          if (!L.live) continue;   // destroyed, unmeasured, or not yet faded in
+
+          const x2 = L.x + L.w, y2 = L.y + L.h;
+          if (p.x + reach < L.x || p.x - reach > x2 ||
+              p.y + reach < L.y || p.y - reach > y2) continue;
+
+          // Closest point on the box, and the outward normal at that point
+          let cx = p.x < L.x ? L.x : (p.x > x2 ? x2 : p.x);
+          let cy = p.y < L.y ? L.y : (p.y > y2 ? y2 : p.y);
+          let dx = p.x - cx, dy = p.y - cy;
+          const d2 = dx * dx + dy * dy;
+          let nx, ny, ejected = false;
+
+          if (d2 > 1e-8) {
+            const dist = Math.sqrt(d2);
+            if (dist >= reach) continue;
+            nx = dx / dist; ny = dy / dist;
+          } else {
+            // Degenerate: the centre is inside the box, which normal approach can never
+            // produce (a comet is caught while still outside - at MAX_SPEED it moves 4.5px
+            // a frame against boxes 14px deep at the very smallest). It happens when a
+            // comet is *placed* inside one: seeded before the glyphs were measured, or
+            // left there by a resize.
+            //
+            // Escape is vertical, never sideways, even when a side face is nearer. Glyphs
+            // in a word are adjacent with no gap, so ejecting through a side face pushes
+            // the comet into its neighbour, which ejects it straight back - a stable
+            // ping-pong that traps the comet on the seam for as long as the letters live.
+            //
+            // Which way is decided by the copy as a whole, not by this glyph: away from the
+            // middle of the text block. Picking the nearer face of the box alone has the
+            // same failure one level up - the two lines of the hero name are vertically
+            // adjacent, so "down out of line one" is "into line two", which sends it back
+            // up. Because every glyph agrees on the direction, a comet handed from box to
+            // box within one pass only ever moves further from the middle, so the chain
+            // always terminates clear of the copy instead of oscillating inside it.
+            if (p.y < (lbMinY + lbMaxY) * 0.5) { nx = 0; ny = -1; cx = p.x; cy = L.y; }
+            else                               { nx = 0; ny =  1; cx = p.x; cy = y2;  }
+            ejected = true;
+          }
+
+          // Immovable body: the comet absorbs the entire positional correction
+          p.x = cx + nx * reach;
+          p.y = cy + ny * reach;
+          // An ordinary contact nudges a comet by a fraction of a pixel, but the escape
+          // above can move it the height of a glyph at once. Without dragging the trail
+          // along, that jump renders as a long streak from wherever the comet used to be -
+          // the exact artefact seen when one is seeded behind the name and shoved clear.
+          if (ejected) p.resetTrail();
+
+          const vn = p.vx * nx + p.vy * ny;
+          if (vn >= 0) continue;   // already leaving; resolving again would pump in energy
+          p.vx -= (1 + LETTER_RESTITUTION) * vn * nx;
+          p.vy -= (1 + LETTER_RESTITUTION) * vn * ny;
+
+          const impact = -vn;
+
+          // Checked before either new crack is recorded, or every hit would crit against
+          // the fracture it just opened.
+          // Both are gated on the same "hard enough to matter" bar a crack needs, which
+          // matters far more here than it does between two comets: a glyph is immovable,
+          // so the cursor can pin a comet against one indefinitely, and every frame of
+          // that produces a fresh sub-threshold contact. Ungated, each of those frames
+          // counted as a critical hit on the fracture already there - 2.6x damage and a
+          // shockwave, sixty times a second, off a contact too soft to even scuff.
+          const hard  = impact >= CRACK_MIN_IMPACT;
+          const critL = hard ? letterCrackNear(L, cx, cy) : -1;
+          const critP = hard ? p.crackNear(-nx, -ny)      : -1;
+
+          let dmgL = LETTER_DAMAGE_SCALE * p.mass       * impact;
+          let dmgP = DAMAGE_SCALE        * LETTER_MASS  * impact;
+          if (critL >= 0) dmgL *= CRIT_MULT;
+          if (critP >= 0) dmgP *= CRIT_MULT;
+          L.health -= dmgL;
+          p.health -= dmgP;
+          L.idle = 0;
+
+          if (critL >= 0) { L.cracks[critL].hits++; L.cracks[critL].fade = 1; }
+          else if (hard && L.cracks.length < LETTER_MAX_CRACKS) {
+            L.cracks.push(newLetterCrack(cx - L.x, cy - L.y, nx, ny));
+            // updateLetters raises this flag, but it already ran this frame - without
+            // setting it here a brand-new fracture would not draw until the next one.
+            anyCracks = true;
+          }
+          if (critP >= 0) p.cracks[critP].hits++;
+          else if (hard && p.cracks.length < MAX_CRACKS) {
+            p.cracks.push({ ax: -nx, ay: -ny, hits: 1 });
+          }
+
+          const lDies = L.health <= 0;
+          const pDies = p.alive && p.health <= 0;
+
+          // Same escalation as a comet-comet contact, and the same priority: a death
+          // pre-empts the quiet bounce puff on that side.
+          if (critL >= 0 && !lDies) spawnLetterCrit(cx, cy, L.rgb, false, 1);
+          if (critP >= 0 && !pDies) spawnCrit(cx, cy, p.headRgb, false, p.mass);
+          if (!lDies && !pDies && critL < 0 && critP < 0 && impact >= BOUNCE_MIN_IMPACT) {
+            spawnLetterBounce(cx, cy, p.headRgb, L.rgb, p.mass, impact / MAX_SPEED);
+          }
+
+          if (pDies) {
+            if (critP >= 0) spawnCritDeath(p.x, p.y, p.headRgb, p.mass);
+            else spawnCometDeath(p.x, p.y, p.headRgb, p.mass);
+            spawnTrailGhost(p);
+            p.alive = false;
+          }
+          if (lDies) shatterLetter(L);
+          if (!p.alive) break;   // nothing left to test against the remaining glyphs
+        }
+      }
+    }
+
+    // Overlay pass. Everything here is text damage, drawn above the copy.
+    function renderLetterFx(dt) {
+      if (!fctx) return;
+      const busy = anyCracks || letterShards.length || letterSparks.length ||
+                   letterCrits.length || letterRings.length;
+      // One final clear when the layer goes quiet, then nothing at all until it is needed
+      // again - an untouched hero should not be paying to wipe an empty canvas 60x/sec.
+      // The element is also taken out of the page while idle: an undamaged hero is the
+      // normal state, and a second full-viewport canvas that is composited every frame to
+      // contribute nothing is exactly the kind of fixed cost a weaker GPU cannot absorb.
+      if (!busy) {
+        if (fxDirty) {
+          fctx.clearRect(0, 0, W, H);
+          fxDirty = false;
+          fx.style.display = 'none';
+        }
+        return;
+      }
+      if (!fxDirty) fx.style.display = '';
+      fctx.clearRect(0, 0, W, H);
+      fxDirty = true;
+
+      // Fractures. A rectangular clip is not enough: even with the box tightened to the
+      // ink, letters have counters and open sides (the bowl of a P, the diagonals of a V),
+      // and a crack drawn across those hangs in empty space beside the glyph. So each
+      // letter's fractures are drawn into the scratch buffer and then masked with the
+      // glyph itself via destination-in - only the strokes that land on painted text
+      // survive. Per damaged letter that is one clear, one fillText and one drawImage,
+      // and typically only a handful of letters carry damage at once.
+      if (anyCracks) {
+        for (let i = 0; i < letters.length; i++) {
+          const L = letters[i];
+          if (L.state !== 0 || !L.cracks.length) continue;
+          const w = Math.max(1, Math.ceil(L.w)), h = Math.max(1, Math.ceil(L.h));
+          if (scratch.width < w)  scratch.width  = w;    // grow only - assigning resets it
+          if (scratch.height < h) scratch.height = h;
+
+          sctx.clearRect(0, 0, w, h);
+          sctx.lineCap     = 'round';
+          sctx.strokeStyle = 'rgba(255, 60, 40, 1)';
+          const scale = Math.min(L.w, L.h) * 0.42;
+          for (let c = 0; c < L.cracks.length; c++) {
+            const k    = L.cracks[c];
+            const grow = 1 + (k.hits - 1) * 0.3;
+            sctx.globalAlpha = Math.min(1, 0.55 + (k.hits - 1) * 0.2) * k.fade;
+            sctx.lineWidth   = Math.max(1, scale * 0.07 * grow);
+            sctx.beginPath();
+            for (let g = 0; g < k.legs.length; g++) {
+              const leg = k.legs[g];
+              const len = scale * leg.len * grow;
+              sctx.moveTo(k.x, k.y);
+              sctx.lineTo(k.x + Math.cos(leg.a) * len * 0.55,
+                          k.y + Math.sin(leg.a) * len * 0.55);
+              sctx.lineTo(k.x + Math.cos(leg.a + leg.bend) * len,
+                          k.y + Math.sin(leg.a + leg.bend) * len);
+            }
+            sctx.stroke();
+          }
+
+          // Keep only the strokes that fall on the letter's own ink
+          sctx.globalAlpha = 1;
+          sctx.globalCompositeOperation = 'destination-in';
+          sctx.fillStyle = '#ffffff';
+          sctx.font      = L.font;
+          paintGlyph(sctx, L);
+          sctx.globalCompositeOperation = 'source-over';
+
+          fctx.globalAlpha = scrollOpacity;
+          fctx.drawImage(scratch, 0, 0, w, h, L.x, L.y, w, h);
+        }
+      }
+
+      for (let i = letterRings.length - 1; i >= 0; i--) {
+        const r = letterRings[i];
+        r.update(dt);
+        if (!r.alive) { letterRings[i] = letterRings[letterRings.length - 1]; letterRings.pop(); continue; }
+        r.draw();
+      }
+      for (let i = letterShards.length - 1; i >= 0; i--) {
+        const s = letterShards[i];
+        s.update(dt);
+        if (!s.alive) { letterShards[i] = letterShards[letterShards.length - 1]; letterShards.pop(); continue; }
+        s.draw();
+      }
+      for (let i = letterSparks.length - 1; i >= 0; i--) {
+        const s = letterSparks[i];
+        s.update(dt);
+        if (!s.alive) { letterSparks[i] = letterSparks[letterSparks.length - 1]; letterSparks.pop(); continue; }
+        s.draw(fctx);
+      }
+      for (let i = letterCrits.length - 1; i >= 0; i--) {
+        const c = letterCrits[i];
+        c.update(dt);
+        if (!c.alive) { letterCrits[i] = letterCrits[letterCrits.length - 1]; letterCrits.pop(); continue; }
+        c.draw(fctx);
+      }
+
+      fctx.globalAlpha = 1;
+    }
+
+    function resolveCollisions() {
+      // Naive O(n^2) pair sweep. At MAX = 90 that is ~4k squared-distance tests per
+      // frame, which is far cheaper than the trail strokes - a spatial hash would only
+      // be worth it if the population grew several times over.
+      for (let i = 0; i < particles.length; i++) {
+        const a = particles[i];
+        if (!a.alive) continue;
+
+        for (let j = i + 1; j < particles.length; j++) {
+          const b = particles[j];
+          if (!b.alive) continue;
+
+          const dx   = b.x - a.x;
+          const dy   = b.y - a.y;
+          const rsum = (a.r + b.r) * COLLIDE_SCALE;
+          const d2   = dx * dx + dy * dy;
+          if (d2 >= rsum * rsum || d2 < 1e-8) continue;   // no contact, or exactly coincident
+
+          const dist = Math.sqrt(d2);
+          const nx   = dx / dist;
+          const ny   = dy / dist;
+
+          // Push the overlap apart, split by mass so the heavier comet yields less.
+          // Positions only - this carries no impulse and so leaves momentum untouched.
+          // Done unconditionally, so a pair that is overlapped but already drifting apart
+          // still gets separated rather than being left sunk into each other.
+          const share = (rsum - dist) / (a.mass + b.mass);
+          a.x -= nx * share * b.mass;
+          a.y -= ny * share * b.mass;
+          b.x += nx * share * a.mass;
+          b.y += ny * share * a.mass;
+
+          // Closing speed along the normal. Pairs already moving apart take no impulse,
+          // so a contact that spans frames cannot be resolved twice and pump in energy.
+          const rvn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+          if (rvn > 0) continue;
+
+          const ima = 1 / a.mass;
+          const imb = 1 / b.mass;
+          const imp = -(1 + RESTITUTION) * rvn / (ima + imb);
+
+          a.vx -= imp * ima * nx;
+          a.vy -= imp * ima * ny;
+          b.vx += imp * imb * nx;
+          b.vy += imp * imb * ny;
+
+          // Damage: scales with the OTHER comet's mass and the shared impact speed,
+          // so a heavy comet shrugs off hitting a light one but a light comet takes a
+          // real beating from a heavy one. Cracks mark the exact contact point on each
+          // comet's own surface - direction toward the other comet on A, and the
+          // mirror direction on B.
+          const impactSpeed = -rvn;
+
+          // Critical hit: does this impact land on ground an earlier hit already broke?
+          // Checked BEFORE the new crack is recorded, or every hit would crit against
+          // the scar it just created.
+          const critA = a.crackNear(nx, ny);
+          const critB = b.crackNear(-nx, -ny);
+
+          let dmgA = DAMAGE_SCALE * b.mass * impactSpeed;
+          let dmgB = DAMAGE_SCALE * a.mass * impactSpeed;
+          if (critA >= 0) dmgA *= CRIT_MULT;
+          if (critB >= 0) dmgB *= CRIT_MULT;
+          a.health -= dmgA;
+          b.health -= dmgB;
+
+          // A crit deepens the crack it reopened; a fresh hard hit leaves a new one.
+          // Soft glances leave nothing - drifting comets bump constantly and those
+          // contacts should not scar.
+          if (critA >= 0) a.cracks[critA].hits++;
+          else if (impactSpeed >= CRACK_MIN_IMPACT && a.cracks.length < MAX_CRACKS) {
+            a.cracks.push({ ax: nx, ay: ny, hits: 1 });
+          }
+          if (critB >= 0) b.cracks[critB].hits++;
+          else if (impactSpeed >= CRACK_MIN_IMPACT && b.cracks.length < MAX_CRACKS) {
+            b.cracks.push({ ax: -nx, ay: -ny, hits: 1 });
+          }
+
+          // Reflected damage: if a hit overkills one comet, the excess (the energy
+          // that had nowhere left to go once its target was already destroyed) is
+          // kicked back onto whichever comet dealt it.
+          if (a.health < 0) { b.health += a.health; a.health = 0; }
+          if (b.health < 0) { a.health += b.health; b.health = 0; }
+
+          const aDies = a.alive && a.health <= 0;
+          const bDies = b.alive && b.health <= 0;
+
+          // Four distinct outcomes, escalating in weight:
+          //  - ordinary bounce -> a quick puff at the contact point (death and crit
+          //                       both take priority over this - see below)
+          //  - crit, survives  -> small shockwave alone, on the fracture (0.8r, matching
+          //                       where the crack itself is drawn)
+          //  - dies, no crit   -> spawnCometDeath: pop + small shockwave
+          //  - dies on a crit  -> spawnCritDeath: both, amplified
+          // A death always fires at the comet's own centre, not the contact point -
+          // the whole comet is gone, not just the struck spot.
+          if (critA >= 0 && !aDies) {
+            spawnCrit(a.x + nx * a.r * 0.8, a.y + ny * a.r * 0.8, a.headRgb, false, a.mass);
+          }
+          if (critB >= 0 && !bDies) {
+            spawnCrit(b.x - nx * b.r * 0.8, b.y - ny * b.r * 0.8, b.headRgb, false, b.mass);
+          }
+
+          // Plain bounce: neither comet died, and neither side crit (those already got
+          // their own shockwave above). Death pre-empting this is the whole point - a
+          // comet that just ended does not also flash a little "we touched" puff.
+          // The puff sits at the true contact point. The overlap separation above leaves
+          // the pair exactly touching, so that point is simply A's effective surface
+          // along the normal - which is also B's, from the other side. It used to be a
+          // flat 0.5r from A, ignoring B entirely, so a small comet hitting a large one
+          // flashed inside the small one rather than where the two actually met.
+          // Uses post-separation positions throughout; mixing in the pre-separation
+          // `dist` would put it a fraction of a pixel off.
+          if (!aDies && !bDies && critA < 0 && critB < 0 && impactSpeed >= BOUNCE_MIN_IMPACT) {
+            const reach = a.r * COLLIDE_SCALE;
+            spawnBounce(a.x + nx * reach, a.y + ny * reach,
+                        a.headRgb, b.headRgb,
+                        (a.mass + b.mass) * 0.5, impactSpeed / MAX_SPEED);
+          }
+
+          if (aDies) {
+            if (critA >= 0) spawnCritDeath(a.x, a.y, a.headRgb, a.mass);
+            else spawnCometDeath(a.x, a.y, a.headRgb, a.mass);
+            spawnTrailGhost(a);
+            a.alive = false;
+          }
+          if (bDies) {
+            if (critB >= 0) spawnCritDeath(b.x, b.y, b.headRgb, b.mass);
+            else spawnCometDeath(b.x, b.y, b.headRgb, b.mass);
+            spawnTrailGhost(b);
+            b.alive = false;
+          }
+        }
+      }
+    }
+
+    // Spawning: anywhere in the field - comets drift rather than stream from a corner.
+    // The population is a constant MAX; a new comet appears only when an old one ends.
+    // True if (x, y) falls within a live glyph's collision box. Spawning inside one is
+    // the only way a comet ever reaches the degenerate interior case in the letter
+    // solver, so it is cheaper to avoid than to recover from.
+    // True if (x, y) falls within `pad` of a live glyph. Spawning inside one is the only
+    // way a comet reaches the degenerate interior case in the letter solver, so it is
+    // cheaper to avoid than to recover from.
+    function inLetterBox(x, y, pad) {
+      pad = pad || 0;
+      for (let i = 0; i < letters.length; i++) {
+        const L = letters[i];
+        if (L.state !== 0 || L.w <= 0) continue;
+        if (x > L.x - pad && x < L.x + L.w + pad &&
+            y > L.y - pad && y < L.y + L.h + pad) return true;
+      }
+      return false;
+    }
+
+    // Particle jitters its start by up to 7px on each axis, so the clearance a candidate
+    // point is tested with has to cover that or a comet can still land on a letter.
+    const SPAWN_CLEARANCE = 10;
+
+    function spawnOne() {
+      // Keep clear of the cursor so nothing materialises inside the gravity well, and off
+      // the hero copy so nothing materialises on a letter
+      let fx0 = 0, fy0 = 0;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const sx = W * 0.04 + Math.random() * W * 0.92;
+        const sy = H * 0.04 + Math.random() * H * 0.71;   // above the bottom fade band
+        const dx = sx - mouseX, dy = sy - mouseY;
+        const offText = !inLetterBox(sx, sy, SPAWN_CLEARANCE);
+        if (offText && dx * dx + dy * dy > 160 * 160) {
+          particles.push(new Particle(sx, sy));
+          return;
+        }
+        // Remember the best near-miss: staying off the text matters more than staying off
+        // the cursor, since a comet born on a glyph is shoved out of it on the same frame.
+        if (offText) { fx0 = sx; fy0 = sy; }
+      }
+      // Out of attempts. Fall back to a point known to be clear of the text if one turned
+      // up, and only otherwise to the bottom band, which the copy never reaches.
+      if (fx0) particles.push(new Particle(fx0, fy0));
+      else particles.push(new Particle(W * 0.04 + Math.random() * W * 0.92,
+                                       H * 0.6 + Math.random() * H * 0.15));
+    }
+
+    // Seed the full field on load so the hero is never sparse
+    function seedField() {
+      while (particles.length < MAX) {
+        spawnOne();
+        // Stagger the fade-in so the field arrives gradually instead of blooming at once
+        const p = particles[particles.length - 1];
+        if (p) p.age = Math.random() * 500;
+      }
+    }
+
+    // Render loop.
+    // Gated on visibility: the hero canvas only exists at the top of the page, so once
+    // it scrolls away (or the tab is backgrounded) every frame is invisible work. The
+    // loop is stopped outright rather than drawn at zero alpha - previously the full
+    // simulation, collision sweep and 90 trail strokes still ran for output nobody sees.
     let prev = 0;
+    let running = false;
+    let rafId = 0;
+
+    function startLoop() {
+      if (running) return;
+      running = true;
+      prev = 0;   // drop the paused interval so dt does not spike on the first frame back
+      rafId = requestAnimationFrame(animate);
+    }
+    function stopLoop() {
+      if (!running) return;
+      running = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+      // Nothing will redraw the overlay while paused, so leave it empty rather than
+      // frozen mid-shatter - otherwise scrolling back reveals a stale frame.
+      if (fctx && fxDirty) {
+        fctx.clearRect(0, 0, W, H);
+        fxDirty = false;
+        fx.style.display = 'none';
+      }
+    }
+
     function animate(ts) {
+      if (!running) return;
       const dt = prev ? Math.min(ts - prev, 50) : 16;
       prev = ts;
+
+      // Frame pacing -> population target. Intervals at the 50ms clamp are stalls (a
+      // background tab, a GC pause, the loop resuming) and say nothing about steady-state
+      // cost, so they are left out of the average entirely.
+      if (dt >= 6 && dt < 50) {
+        if (dt < perfBase) perfBase = dt;
+        perfSum += dt;
+        if (++perfCount >= PERF_WINDOW) {
+          const avg = perfSum / perfCount;
+          perfSum = 0; perfCount = 0;
+          if (avg > perfBase * PERF_SHED_AT) {
+            liveMax = Math.max(MIN_COMETS, liveMax - PERF_STEP);
+          } else if (avg < perfBase * PERF_RECOVER && liveMax < MAX) {
+            liveMax = Math.min(MAX, liveMax + PERF_STEP);
+          }
+        }
+      }
 
       ctx.clearRect(0, 0, W, H);
 
       drawGrid(ts);   // star field - bottom layer; manages its own globalAlpha
-
-      if (ts - lastSpawn > spawnDelay) spawnCluster(ts);
 
       for (let i = particles.length - 1; i >= 0; i--) {
         if (!particles[i].alive) {
@@ -1177,11 +2741,47 @@ section{padding:clamp(5rem,11vh,8rem) 0}
           particles.pop();
         }
       }
+      // One in, one out - every comet lost to the boundary or the cursor is replaced,
+      // up to the current target. When that target drops, the field is thinned by simply
+      // not replacing the next departures rather than deleting live comets, so shedding
+      // load is invisible instead of a handful of comets blinking out at once.
+      while (particles.length < liveMax) spawnOne();
+
       for (let i = 0; i < particles.length; i++) particles[i].update(dt);
+
+      resolveCollisions();   // after integration, while positions are current
+
+      updateLetters(dt);            // respawn timers, healing, fracture closing
+      resolveLetterCollisions();    // then the static text bodies, with positions current
 
       drawCursorLines();   // lines behind particles
 
+      // Fading trail remnants, drawn under the live comets they belong to
+      for (let i = ghosts.length - 1; i >= 0; i--) {
+        const g = ghosts[i];
+        g.update(dt);
+        if (!g.alive) {
+          ghosts[i] = ghosts[ghosts.length - 1];
+          ghosts.pop();
+          continue;
+        }
+        g.draw();
+      }
+
       for (let i = 0; i < particles.length; i++) particles[i].draw();
+
+      // Bounce sparks first - the subtlest effect, so bigger ones drawn after it are
+      // never hidden underneath
+      for (let i = bounces.length - 1; i >= 0; i--) {
+        const p = bounces[i];
+        p.update(dt);
+        if (!p.alive) {
+          bounces[i] = bounces[bounces.length - 1];
+          bounces.pop();
+          continue;
+        }
+        p.draw();
+      }
 
       // Explosions on top
       for (let i = explosions.length - 1; i >= 0; i--) {
@@ -1195,13 +2795,55 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         spark.draw();
       }
 
+      // Shatter fragments from a critical death
+      for (let i = shards.length - 1; i >= 0; i--) {
+        const s = shards[i];
+        s.update(dt);
+        if (!s.alive) {
+          shards[i] = shards[shards.length - 1];
+          shards.pop();
+          continue;
+        }
+        s.draw();
+      }
+
+      // Crit shockwaves above the sparks - they mark the moment of a critical hit
+      for (let i = crits.length - 1; i >= 0; i--) {
+        const c = crits[i];
+        c.update(dt);
+        if (!c.alive) {
+          crits[i] = crits[crits.length - 1];
+          crits.pop();
+          continue;
+        }
+        c.draw();
+      }
+
+      // Black holes last: destination-out needs everything else this frame already
+      // drawn so there is something for the void to erase.
+      for (let i = blackHoles.length - 1; i >= 0; i--) {
+        const bh = blackHoles[i];
+        bh.update(dt);
+        if (!bh.alive) {
+          blackHoles[i] = blackHoles[blackHoles.length - 1];
+          blackHoles.pop();
+          continue;
+        }
+        bh.draw();
+      }
+
       ctx.globalAlpha = 1;
-      requestAnimationFrame(animate);
+      ctx.globalCompositeOperation = 'source-over';   // guard against a leaked state
+
+      renderLetterFx(dt);   // separate layer, so its ordering is independent of the above
+
+      rafId = requestAnimationFrame(animate);
     }
 
+    const heroEl = document.getElementById('hero');   // cached - was re-queried per scroll
     let heroLeft = 0, heroTop = 0;
     function syncHeroRect() {
-      const rect = document.getElementById('hero').getBoundingClientRect();
+      const rect = heroEl.getBoundingClientRect();
       heroLeft = rect.left;
       heroTop  = rect.top;
     }
@@ -1212,15 +2854,43 @@ section{padding:clamp(5rem,11vh,8rem) 0}
     });
 
     function syncScrollOpacity() {
-      const heroBottom = document.getElementById('hero').getBoundingClientRect().bottom;
-      scrollOpacity = heroBottom > 0 ? Math.min(1, heroBottom / 200) : 0;
-      syncHeroRect();
+      const rect = heroEl.getBoundingClientRect();   // one layout read, was two
+      scrollOpacity = rect.bottom > 0 ? Math.min(1, rect.bottom / 200) : 0;
+      heroLeft = rect.left;
+      heroTop  = rect.top;
     }
-    window.addEventListener('scroll', syncScrollOpacity, { passive: true });
-    window.addEventListener('resize', resizeCanvas,      { passive: true });
+    // rAF-throttled: scroll fires far more often than the screen refreshes, and each
+    // call forces a synchronous layout via getBoundingClientRect.
+    window.addEventListener('scroll', rafThrottle(syncScrollOpacity), { passive: true });
+    window.addEventListener('resize', rafThrottle(resizeCanvas),      { passive: true });
+
+    // Only animate while the hero is actually on screen and the tab is foregrounded.
+    let heroVisible = true;
+    function syncRunState() {
+      if (!document.hidden && heroVisible) startLoop();
+      else stopLoop();
+    }
+    new IntersectionObserver(function (entries) {
+      heroVisible = entries[entries.length - 1].isIntersecting;
+      syncRunState();
+    }, { threshold: 0 }).observe(heroEl);
+    document.addEventListener('visibilitychange', syncRunState);
 
     resizeCanvas();
-    requestAnimationFrame(animate);
+    seedField();
+    // Starts empty, so it starts out of the compositor too; renderLetterFx puts it back
+    // the moment there is damage to draw.
+    if (fx) fx.style.display = 'none';
+    startLoop();
+
+    // The text-intro system runs later in this same script and is what creates the
+    // per-character spans, so there is nothing to collect yet at this point. Collect on
+    // the next frame (by which time it has run), again once webfonts have settled, and
+    // once more after the intro's own 1200 ms safety net - each pass is idempotent and
+    // preserves whatever damage the letters have already taken.
+    requestAnimationFrame(collectLetters);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(collectLetters);
+    setTimeout(collectLetters, 1500);
   })();
 
   /* Email obfuscation (assemble only on user intent) */
@@ -1258,43 +2928,211 @@ section{padding:clamp(5rem,11vh,8rem) 0}
     });
   })();
 
-  /* Nav: scrolled state */
+  /* Nav: scrolled state + active section highlight.
+     Both run from a single rAF-throttled scroll handler. Previously these were two
+     separate listeners, and the active-section pass called getBoundingClientRect on
+     every nav section on every scroll event - four forced layouts per event, many
+     events per frame. Section elements are now resolved once instead of re-queried. */
   var nav = document.getElementById('site-nav');
   function syncNav() { nav.classList.toggle('scrolled', window.scrollY > 30); }
-  window.addEventListener('scroll', syncNav, { passive: true });
-  syncNav();
 
-  /* Nav: active section highlight */
   var NAV_SECTIONS = ['about', 'projects', 'experience', 'contact'];
   var navMap = {};
+  var navSecs = [];
   NAV_SECTIONS.forEach(function (id) {
     var link = document.querySelector('.nav__links a[href="#' + id + '"]');
     if (link) navMap[id] = link;
+    var sec = document.getElementById(id);
+    if (sec) navSecs.push({ id: id, el: sec });
   });
   var currentActive = null;
   function syncActiveNav() {
     var next = null;
-    NAV_SECTIONS.forEach(function (id) {
-      var sec = document.getElementById(id);
-      if (sec && sec.getBoundingClientRect().top < window.innerHeight * 0.45) next = id;
-    });
+    var cutoff = window.innerHeight * 0.45;
+    for (var i = 0; i < navSecs.length; i++) {
+      if (navSecs[i].el.getBoundingClientRect().top < cutoff) next = navSecs[i].id;
+    }
     if (next === currentActive) return;
     if (currentActive && navMap[currentActive]) navMap[currentActive].classList.remove('active');
     if (next && navMap[next]) navMap[next].classList.add('active');
     currentActive = next;
   }
-  window.addEventListener('scroll', syncActiveNav, { passive: true });
 
-  /* Reveal on scroll */
+  var onScroll = rafThrottle(function () { syncNav(); syncActiveNav(); });
+  window.addEventListener('scroll', onScroll, { passive: true });
+  syncNav();
+
+  /* Reveal on scroll.
+     Re-triggers: the section is hidden again once it is fully out of view, so scrolling
+     back up replays it. Two thresholds give hysteresis - reveal at 10% visible, but only
+     reset at 0% - otherwise a tall section would fade out while still partly on screen. */
   var revealObserver = new IntersectionObserver(function (entries) {
     entries.forEach(function (entry) {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
-        revealObserver.unobserve(entry.target);
-      }
+      if (entry.intersectionRatio >= 0.1) entry.target.classList.add('visible');
+      else if (entry.intersectionRatio === 0) entry.target.classList.remove('visible');
     });
-  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+  }, { threshold: [0, 0.1], rootMargin: '0px 0px -40px 0px' });
   document.querySelectorAll('.reveal').forEach(function (el) { revealObserver.observe(el); });
+
+  /* Text intro animations.
+     Splits marked elements into per-character spans once, then plays/resets them as they
+     enter and leave the viewport. Same hysteresis as above so partly-visible text does
+     not thrash. Falls back to plain visible text when reduced motion is requested. */
+  (function () {
+    var reduced = window.matchMedia &&
+                  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var els = document.querySelectorAll('[data-anim]');
+    if (!els.length || reduced) return;   // CSS media query already forces these visible
+
+    var GLYPHS = '01<>[]{}()/\\|=+*#$%&_~^!?:;.';
+    var active = [];       // decode jobs currently running
+    var ticking = false;
+
+    // Accessible name, built without touching layout. <br> counts as a word break.
+    function labelOf(el) {
+      var out = '';
+      (function walk(n) {
+        for (var i = 0; i < n.childNodes.length; i++) {
+          var k = n.childNodes[i];
+          if (k.nodeType === 3) out += k.nodeValue;
+          else if (k.nodeType === 1) { if (k.tagName === 'BR') out += ' '; else walk(k); }
+        }
+      })(el);
+      return out.replace(/\s+/g, ' ').trim();
+    }
+
+    // Wrap every character in its own span, preserving inline markup (<em>, <strong>)
+    // and <br>. All char spans for one text node share a wrapper, so that flex parents
+    // (.hero__eyebrow, .section-number both use gap) see one child, not one per letter.
+    function split(el) {
+      var idx = 0;
+      (function walk(node) {
+        var kids = Array.prototype.slice.call(node.childNodes);
+        for (var i = 0; i < kids.length; i++) {
+          var n = kids[i];
+          if (n.nodeType === 3) {
+            var text = n.nodeValue;
+            if (!/\S/.test(text)) continue;
+            var wrap = document.createElement('span');
+            wrap.className = 'anim-wrap';
+            wrap.setAttribute('aria-hidden', 'true');
+            for (var c = 0; c < text.length; c++) {
+              var sp = document.createElement('span');
+              sp.className = 'anim-char';
+              sp.textContent = text[c];
+              sp.setAttribute('data-c', text[c]);
+              sp.style.setProperty('--i', idx++);
+              wrap.appendChild(sp);
+            }
+            node.replaceChild(wrap, n);
+          } else if (n.nodeType === 1 && n.tagName !== 'BR') {
+            walk(n);
+          }
+        }
+      })(el);
+      return idx;
+    }
+
+    function tick(ts) {
+      for (var j = active.length - 1; j >= 0; j--) {
+        var job = active[j];
+        if (job.t0 === null) job.t0 = ts;
+        var e = ts - job.t0;
+        var done = true;
+        for (var c = 0; c < job.chars.length; c++) {
+          var ch  = job.chars[c];
+          var fin = ch.getAttribute('data-c');
+          if (!/\S/.test(fin)) { ch.classList.add('anim-set'); continue; }
+          var settle = 90 + c * 38;
+          if (e >= settle) {
+            if (!ch._set) {
+              ch._set = true;
+              ch.textContent = fin;
+              ch.classList.add('anim-set', 'anim-hot');
+            }
+            if (e < settle + 260) done = false;
+            else if (ch._hot) { ch._hot = false; ch.classList.remove('anim-hot'); }
+          } else {
+            done = false;
+            var slot = (e / 45) | 0;
+            if (ch._g !== slot) {
+              ch._g = slot;
+              ch.textContent = GLYPHS.charAt((Math.random() * GLYPHS.length) | 0);
+            }
+          }
+        }
+        if (done) active.splice(j, 1);
+      }
+      if (active.length) requestAnimationFrame(tick);
+      else ticking = false;
+    }
+
+    function play(el) {
+      if (el._anim) return;
+      el._anim = true;
+      el.classList.add('anim-play');
+      if (el.getAttribute('data-anim') !== 'decode') return;
+      var chars = el.querySelectorAll('.anim-char');
+      for (var i = 0; i < chars.length; i++) {
+        chars[i]._set = false; chars[i]._hot = true; chars[i]._g = -1;
+        chars[i].classList.remove('anim-set', 'anim-hot');
+      }
+      active.push({ el: el, chars: chars, t0: null });
+      if (!ticking) { ticking = true; requestAnimationFrame(tick); }
+    }
+
+    function reset(el) {
+      if (!el._anim) return;
+      el._anim = false;
+      el.classList.remove('anim-play');
+      for (var j = active.length - 1; j >= 0; j--) if (active[j].el === el) active.splice(j, 1);
+      var chars = el.querySelectorAll('.anim-char');
+      for (var i = 0; i < chars.length; i++) {
+        chars[i].classList.remove('anim-set', 'anim-hot');
+        chars[i].textContent = chars[i].getAttribute('data-c');
+      }
+    }
+
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.getAttribute('data-anim') !== 'fade') {          // fade is whole-block
+        var label = labelOf(el);
+        split(el);
+        if (label) {
+          // Screen readers read this instead of the per-character spans, which are hidden
+          var sr = document.createElement('span');
+          sr.className = 'sr-only';
+          sr.textContent = label;
+          el.insertBefore(sr, el.firstChild);
+        }
+      }
+      el.classList.add('anim-ready');   // only now may CSS hide it
+    }
+
+    // No IntersectionObserver: show everything rather than animate it.
+    if (!window.IntersectionObserver) {
+      for (var n = 0; n < els.length; n++) play(els[n]);
+      return;
+    }
+
+    var animObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.intersectionRatio >= 0.15) play(entry.target);
+        else if (entry.intersectionRatio === 0) reset(entry.target);
+      });
+    }, { threshold: [0, 0.15] });
+    for (var k = 0; k < els.length; k++) animObserver.observe(els[k]);
+
+    // Safety net: if the observer has not reported on an element that is plainly in
+    // view, play it anyway. Hidden text is a far worse outcome than a missed animation.
+    setTimeout(function () {
+      for (var m = 0; m < els.length; m++) {
+        if (els[m]._anim) continue;
+        var r = els[m].getBoundingClientRect();
+        if (r.bottom > 0 && r.top < window.innerHeight) play(els[m]);
+      }
+    }, 1200);
+  })();
 
   /* Project modal */
   var backdrop  = document.getElementById('modal-backdrop');
@@ -1305,6 +3143,30 @@ section{padding:clamp(5rem,11vh,8rem) 0}
   var loadingEl = document.getElementById('modal-loading');
   var mdEl      = document.getElementById('modal-md');
   var mdCache   = {};
+
+  /* Project markdown lives in projects/*.md but is rendered into this page,
+     so relative image paths (e.g. "images/slug/foo.png") must be resolved
+     against projects/, not the page's own URL -- see configureMarked() below.
+     marked loads via a deferred CDN <script>; despite this script also being
+     deferred, `marked` is not reliably defined yet by the time this IIFE runs
+     (observed here even with matching defer attributes), so configuration is
+     done lazily on first actual use instead of at top-level script scope. */
+  var markedConfigured = false;
+  function configureMarked() {
+    if (markedConfigured) return;
+    marked.use({
+      gfm: true,
+      breaks: false,
+      walkTokens: function (token) {
+        if (token.type === 'image' && typeof token.href === 'string' &&
+            !/^([a-z][a-z0-9+.-]*:)?\/\//i.test(token.href) &&
+            token.href.charAt(0) !== '/') {
+          token.href = 'projects/' + token.href;
+        }
+      }
+    });
+    markedConfigured = true;
+  }
 
   function openModal(card) {
     var slug   = card.dataset.slug || '';
@@ -1355,7 +3217,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
     if (typeof marked !== 'undefined') {
       /* marked parses developer-controlled static files only - no user input reaches here.
          DOMPurify would add defence-in-depth if this ever accepts external content. */
-      marked.use({ gfm: true, breaks: false });
+      configureMarked();
       mdEl.innerHTML = marked.parse(text);
     } else {
       var pre = document.createElement('pre');
@@ -1373,8 +3235,48 @@ section{padding:clamp(5rem,11vh,8rem) 0}
     document.body.style.overflow = '';
   }
 
+  var DATE_COMMENT_RE = /<!--\s*date:\s*(.*?)\s*-->/i;
+
+  function projectDate(mdText) {
+    var m = DATE_COMMENT_RE.exec(mdText || '');
+    var raw = m ? m[1].trim() : '';
+    if (!raw || /^ongoing$/i.test(raw)) return null;
+    var t = Date.parse(raw);
+    return isNaN(t) ? null : t;
+  }
+
+  function sortProjectsByDate() {
+    var grid = document.getElementById('projects-grid');
+    if (!grid) return;
+    var cards = Array.prototype.slice.call(grid.querySelectorAll('.project-card'));
+    if (cards.length < 2) return;
+
+    Promise.all(cards.map(function (card) {
+      var slug = card.dataset.slug || '';
+      return fetch('projects/' + slug + '.md')
+        .then(function (r) { return r.ok ? r.text() : ''; })
+        .catch(function () { return ''; })
+        .then(function (text) {
+          if (text) mdCache[slug] = text;
+          var titleEl = card.querySelector('.project-card__title');
+          return { card: card, time: projectDate(text), title: titleEl ? titleEl.textContent : slug };
+        });
+    })).then(function (entries) {
+      entries.sort(function (a, b) {
+        if (a.time !== null && b.time !== null) return b.time - a.time;   // newest first
+        if ((a.time !== null) !== (b.time !== null)) return a.time !== null ? 1 : -1;   // undated leads
+        return a.title.localeCompare(b.title);   // alphabetical within the undated group
+      });
+      // appendChild on an already-attached node moves it - this reorders the live
+      // cards in place rather than replacing them, so their click/keydown listeners
+      // (wired below) stay attached regardless of when this resolves.
+      entries.forEach(function (e) { grid.appendChild(e.card); });
+    });
+  }
+  sortProjectsByDate();
+
   /* Wire project cards */
-  document.querySelectorAll('.project-card:not(.project-card--add)').forEach(function (card) {
+  document.querySelectorAll('.project-card').forEach(function (card) {
     card.addEventListener('click', function () { openModal(card); });
     card.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openModal(card); }

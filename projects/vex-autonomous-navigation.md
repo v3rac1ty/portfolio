@@ -1,3 +1,5 @@
+<!-- date: TODO -->
+
 # VEX Autonomous Navigation Stack
 
 A full C++ autonomous navigation stack for a VEX U competition robot — built for Illini VEX Robotics at UIUC. The stack combines Kalman filter odometry, Pure Pursuit path tracking, PID motion control, and trapezoidal motion profiling to execute sub-centimetre autonomous routines. Qualified for the **2024 VEXU World Championship**.

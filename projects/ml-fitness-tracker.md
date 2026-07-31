@@ -1,3 +1,5 @@
+<!-- date: TODO -->
+
 # ML Fitness Tracker
 
 A wrist-worn activity recognition system that classifies exercises in real time using sensor fusion across accelerometer and gyroscope streams — no GPS, no camera, no cloud.

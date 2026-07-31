@@ -1,3 +1,5 @@
+<!-- date: 05-23-2026 -->
+
 # Stock Market Tracker
 
 A C++ desktop application for real-time equity market monitoring - live OHLCV data from the Yahoo Finance JSON API via `libcurl`, a custom ImPlot candlestick renderer, five toggleable technical indicators, and a Catch2-validated test suite.

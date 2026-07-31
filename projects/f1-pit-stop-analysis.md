@@ -1,3 +1,5 @@
+<!-- date: TODO -->
+
 # Formula 1 ML Pit Stop Analysis
 
 A statistical and ML study of how pit stop strategy variables — timing, tyre compound, track position — affect lap-time delta in F1 races from 2018–2023.
