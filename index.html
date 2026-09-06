@@ -610,19 +610,19 @@ section{padding:clamp(5rem,11vh,8rem) 0}
       <!-- Project -->
       <article class="project-card"
                data-slug="3d-print-ai-fail-detector"
-               data-github="https://github.com/v3rac1ty"
-               tabindex="0" role="button" aria-label="Open 3D Print AI Fail Detector project">
+               data-github="https://github.com/v3rac1ty/argus-monitor"
+               tabindex="0" role="button" aria-label="Open Argus AI Print Failure Detection project">
         <div class="project-card__top">
           <span></span>
           <span class="project-card__arrow" aria-hidden="true">↗</span>
         </div>
-        <h3 class="project-card__title">3D Print AI Fail Detector</h3>
-        <p class="project-card__desc">Real-time failure detection combining YOLOv8 computer vision with a 1D CNN on accelerometer data. Runs on-device via ONNX runtime - 40% reduction in false positives over baseline heuristics.</p>
+        <h3 class="project-card__title">Argus - AI Print Failure Detection</h3>
+        <p class="project-card__desc">Camera-based print failure detection for a Voron Trident on Klipper/Moonraker. A YOLO26 model feeds a temporal decision engine that suppresses false positives - 10,000 ticks of nominal noise produced zero false triggers.</p>
         <div class="project-card__tags">
-          <span class="tag">YOLOv8</span>
+          <span class="tag">YOLO26</span>
           <span class="tag">ONNX</span>
-          <span class="tag">1D CNN</span>
-          <span class="tag">Accelerometer</span>
+          <span class="tag">Computer Vision</span>
+          <span class="tag">Klipper/Moonraker</span>
           <span class="tag">Python</span>
         </div>
       </article>
@@ -665,7 +665,7 @@ section{padding:clamp(5rem,11vh,8rem) 0}
           <span class="tag">Blueprints</span>
           <span class="tag">Behavior Trees</span>
           <span class="tag">Animation Montages</span>
-          <span class="tag">Game Dev</span>
+          <span class="tag">Game Development</span>
         </div>
       </article>
 
@@ -3283,6 +3283,9 @@ section{padding:clamp(5rem,11vh,8rem) 0}
         });
     })).then(function (entries) {
       entries.sort(function (a, b) {
+        var aFeatured = a.card.classList.contains('project-card--featured');
+        var bFeatured = b.card.classList.contains('project-card--featured');
+        if (aFeatured !== bFeatured) return aFeatured ? -1 : 1;   // featured always leads
         if (a.time !== null && b.time !== null) return b.time - a.time;   // newest first
         if ((a.time !== null) !== (b.time !== null)) return a.time !== null ? 1 : -1;   // undated leads
         return a.title.localeCompare(b.title);   // alphabetical within the undated group
