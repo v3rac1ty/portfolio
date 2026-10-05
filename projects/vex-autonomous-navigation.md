@@ -1,273 +1,133 @@
-<!-- date: TODO -->
+<!-- date: ongoing -->
 
 # VEX Autonomous Navigation Stack
 
-A full C++ autonomous navigation stack for a VEX U competition robot — built for Illini VEX Robotics at UIUC. The stack combines Kalman filter odometry, Pure Pursuit path tracking, PID motion control, and trapezoidal motion profiling to execute sub-centimetre autonomous routines. Qualified for the **2024 VEXU World Championship**.
+The autonomous navigation code behind Illini VEX Robotics, UIUC's VEX U team, across three
+seasons: **Over Under** (2023-24), **High Stakes** (2024-25), and **Push Back** (2025-26). It is
+written in C++ on [PROS](https://pros.cs.purdue.edu/), the open-source RTOS for the VEX V5 brain,
+and runs two robots per season (a 15-inch and a 24-inch) from one shared codebase. The team
+qualified for the VEX U World Championship in 2024, 2025, and 2026.
+
+This is a team codebase. I led the software as Programming Lead, owning its direction and
+the shared `common/` layer, and now advise the team as Programming Advisor. The sections
+below say which parts I wrote myself.
 
 ---
 
 ## Context
 
-VEX U is the university tier of VEX Robotics. Each match has a 60-second fully autonomous period — no driver input. Millimetre-level positional accuracy and reliable repeatability are the difference between scoring and missing. As Programming Lead, I designed and implemented the entire software stack on the V5 Brain (ARM Cortex-A9, 32-bit, ~400 MHz) using PROS (a VEX-compatible RTOS).
+A VEX U match opens with an autonomous period with no driver input, and the Skills challenge
+adds a full minute of autonomy. Everything in those windows depends on the robot knowing where
+it is on a 12 ft field and getting where it needs to go, repeatably, on carpet that lets the
+wheels slip. The stack is layered so each season can swap mechanisms without touching
+navigation:
 
----
+```mermaid
+flowchart TB
+    subgraph sensing["Localisation"]
+        direction LR
+        imu["2 × V5 IMU"] --> kf["Dual-IMU<br/>Kalman fusion"]
+        tw["Tracking wheels<br/>parallel + perpendicular"] --> odom["Odometry<br/>x, y, θ every 10 ms"]
+        kf -->|"heading"| odom
+    end
 
-## 1 — Odometry
+    subgraph control["Motion"]
+        direction LR
+        auton["Autonomous<br/>routine"] --> queue["Async motion queue<br/>serialised by a mutex"]
+        queue --> motion["Motion commands<br/>turnToAngle, moveToPose"]
+        motion --> pid["PID"]
+    end
 
-Odometry tracks position and orientation relative to a starting point using wheel encoders and differential drive kinematics. Without it, Pure Pursuit and PID have nothing to work with.
-
-### Differential Drive Model
-
-The robot's position `(x, y, θ)` is updated from left and right encoder deltas each cycle:
-
-```cpp
-void Odometry::update(double leftTicks, double rightTicks) {
-    double leftDist  = (leftTicks  / encoderResolution) * (2 * M_PI * wheelRadius);
-    double rightDist = (rightTicks / encoderResolution) * (2 * M_PI * wheelRadius);
-
-    double deltaDistance = (leftDist + rightDist) / 2.0;
-    double deltaTheta    = (rightDist - leftDist) / wheelBase;
-
-    x     += deltaDistance * cos(theta);
-    y     += deltaDistance * sin(theta);
-    theta += deltaTheta;
-
-    // Normalise to [-π, π]
-    if (theta >  M_PI) theta -= 2 * M_PI;
-    if (theta < -M_PI) theta += 2 * M_PI;
-}
+    sensing -->|"pose"| control
+    control --> motors(["Drive motors"])
 ```
 
-The update loop runs asynchronously at 10 ms intervals via a dedicated PROS task:
+## 1 - Pure Pursuit path following (Over Under)
 
-```cpp
-void Odometry::init() {
-    if (trackingTask == nullptr) {
-        trackingTask = new pros::Task([=] {
-            while (true) { update(); pros::delay(10); }
-        });
-    }
-}
+Our 2023-24 robots followed pre-planned paths with Pure Pursuit, written mainly by teammate
+Reid Faistl. Each control cycle the robot:
+
+1. Intersects a look-ahead circle around itself with the path segments ahead (a quadratic in
+   the segment parameter, where the discriminant gives the number of intersections).
+2. Rejects solutions outside the current segment or behind the robot, keeping the one that
+   makes the most forward progress.
+3. Steers toward that look-ahead point with a differential-drive speed split.
+
+The interesting part is the **ending**. Plain Pure Pursuit stops wherever the path stops, facing
+whichever way it happened to arrive. To finish at a specific heading, the follower inserts an
+extra waypoint behind the final point, along the desired final angle, so the robot is already
+lined up by the time it arrives. A second synthetic point past the end lets the look-ahead
+circle "fall off" the path cleanly, which is the stop condition. If the path is too compact for
+that approach, the robot drives to the point and spins in place instead.
+
+The code is public: [IVR_Over_Under](https://github.com/faisr9/IVR_Over_Under).
+
+## 2 - Odometry
+
+Position comes from two unpowered **tracking wheels**, one parallel and one perpendicular to
+the drive, plus the IMU for heading. Each 10 ms update converts encoder deltas into robot-frame
+displacement and rotates that into field coordinates:
+
+```
+Δx_field = Δx_robot · cos θ − Δy_robot · sin θ
+Δy_field = Δx_robot · sin θ + Δy_robot · cos θ
 ```
 
-### Limitations
+Each wheel has a measured offset from the centre of rotation, so a pure turn doesn't register
+as sideways travel. Tracking wheels are what make this reliable: drive wheels slip under
+acceleration, but a free-spinning wheel only moves when the robot actually does.
 
-- Wheel slip (common on competition carpet at high speed) accumulates error.
-- No global reference — only relative localisation.
+## 3 - Dual-IMU Kalman fusion (High Stakes, my work)
 
-These limitations are addressed in the Kalman filter layer below.
+Heading is the input odometry trusts most, and a single V5 IMU drifts over a match, so the
+2024-25 robots carry two IMUs, and I wrote the fusion layer that combines them. Each axis
+(rotation, heading, yaw, pitch, roll) gets its own Kalman filter:
 
----
+- **State**: angle, angular velocity, and angular acceleration, with the full 3×3 covariance
+  including cross terms, propagated with a constant-acceleration motion model.
+- **Measurement**: the two IMU readings. When they agree within a drift threshold, both update
+  the filter. When they disagree, only the reading closer to the current estimate is trusted.
+- **Stationary lock**: once angular velocity stays under a threshold for several consecutive
+  readings, the robot is treated as still and the estimate is pinned to the last stable value.
+  That is where most real drift comes from, an IMU integrating noise while the robot sits
+  still.
+- **Hot-plug recovery**: if either IMU disconnects (a loose cable mid-match), the fusion falls
+  back to the other one alone, then waits for a reconnected sensor to settle before trusting it
+  again.
 
-## 2 — Kalman Filter
+## 4 - PID motion suite (High Stakes)
 
-A Kalman filter fuses the noisy wheel-encoder odometry with the V5 IMU to produce a more reliable position and heading estimate.
+The 2024-25 drive library, which I co-wrote with Anissh G, replaced path following with a set
+of composable point-to-point motions, all closed-loop on odometry:
 
-### Theory
+| Motion | What it does |
+|--------|-------------|
+| `turnToAngle` / `turnToPoint` | Point turn to an absolute heading or to face a field coordinate |
+| `swingToAngle` / `swingToPoint` | Turn with one side locked, for tighter arcs into goals |
+| `translateBy` | Straight drive with a heading-hold loop correcting drift |
+| `moveToPose` | Drive to (x, y, θ) by chasing a "carrot" point projected ahead of the target along its final heading, so the robot curves in and arrives already facing the right way |
 
-The filter alternates between two steps each cycle:
+I wrote the PID controller underneath them. It resets the integral whenever the error changes
+sign, which stops windup from overshooting a target the robot has already passed, and ignores
+the integral entirely while the error is still large, so the I term only acts on the last
+stretch of a move. Every motion
+can run **asynchronously**: it starts its own PROS task and a mutex-guarded queue serialises
+motions, so an autonomous routine can raise an intake or clamp a goal while the drive is still
+moving. The drive itself is assembled with a builder (`drive_builder`), so each robot declares
+its motors, gearing, sensors, and PID constants in one place.
 
-**Prediction** (using the motion model):
-```
-x̂ₙ⁻ = F · x̂ₙ₋₁ + B · uₙ
-Pₙ⁻  = F · Pₙ₋₁ · Fᵀ + Q
-```
+## 5 - Push Back (2025-26)
 
-**Update** (correcting with sensor measurement):
-```
-ỹₙ = zₙ − H · x̂ₙ⁻           (measurement residual)
-S  = H · Pₙ⁻ · Hᵀ + R         (residual covariance)
-K  = Pₙ⁻ · Hᵀ · S⁻¹           (Kalman gain)
-x̂ₙ = x̂ₙ⁻ + K · ỹₙ            (state update)
-Pₙ = (I − K · H) · Pₙ⁻        (covariance update, Joseph form)
-```
-
-### Our Implementation
-
-A three-state filter tracking **position, velocity, and acceleration**:
-
-```cpp
-// Initialise with state and noise parameters
-KalmanFilter kf(
-    initial_position,
-    initial_velocity,
-    initial_acceleration,
-    position_variance,
-    velocity_variance,
-    acceleration_variance,
-    position_process_noise,
-    velocity_process_noise,
-    acceleration_process_noise,
-    measurement_noise
-);
-
-// Filtering loop (dt = 10 ms)
-while (true) {
-    kf.predict(dt);
-    double measurement = imu.get_heading();
-    kf.update(measurement);
-
-    double pos = kf.get_position();
-    double vel = kf.get_velocity();
-    double acc = kf.get_acceleration();
-}
-```
-
-**Kinematic motion model:**
-- Position: `θ = θ₀ + ω₀·t + ½·α·t²`
-- Velocity: `ω = ω₀ + α·t`
-
-**Adaptive noise scaling** — `adaptiveFactor` dynamically adjusts process noise Q to handle wheel slip and non-linear behaviours during fast manoeuvres.
-
-**Joseph form covariance update** — maintains positive-definite covariance matrices for numerical stability.
-
-### Parameter Tuning
-
-| Parameter | Effect |
-|-----------|--------|
-| `Q_pos` — position process noise | Increase to trust measurements over model |
-| `Q_vel` — velocity process noise | Increase for less smooth velocity estimates |
-| `R` — measurement noise | Increase when sensor readings are noisy |
-| `P_pos/vel/acc` — initial covariance | Reflects how confident we are in the initial state |
-
-Running the EKF at 1 kHz (prediction step) fused with IMU at 100 Hz and encoders at 500 Hz reduced heading drift from ±4° to **±0.6°** over a full autonomous routine.
-
----
-
-## 3 — Pure Pursuit
-
-Pure Pursuit computes a lookahead point on the desired path and steers toward it, producing smooth curved trajectories between waypoints.
-
-### Algorithm Overview
-
-1. Read ordered `(x, y, v_target)` waypoints from SD card.
-2. Find the closest point on the path to the robot.
-3. Compute the lookahead point — intersection of a circle (radius = lookahead distance) with the path segment ahead.
-4. Calculate curvature needed to reach the lookahead point.
-5. Compute left/right wheel velocities from curvature and target speed.
-6. Repeat at 10 ms intervals.
-
-### Key Code
-
-```cpp
-void Chassis::follow(const asset& path, float lookahead, int timeout,
-                     bool forwards, bool async) {
-    if (async) {
-        pros::Task task([&]() { follow(path, lookahead, timeout, forwards, false); });
-        pros::delay(10);
-        return;
-    }
-
-    std::vector<Odometry::Pose> pathPoints = getData(path);
-    Odometry::Pose lastLookahead = pathPoints.at(0);
-
-    for (int i = 0; i < timeout / 10 && runningPath; i++) {
-        Odometry::Pose pose = getPose(true);
-        if (!forwards) pose.theta -= M_PI;
-
-        int closest = findClosest(pose, pathPoints);
-        if (pathPoints.at(closest).theta == 0) break;   // end-of-path marker
-
-        Odometry::Pose lookaheadPose =
-            lookaheadPoint(lastLookahead, pose, pathPoints, closest, lookahead);
-        lastLookahead = lookaheadPose;
-
-        float curvature = findLookaheadCurvature(
-            pose, M_PI / 2 - pose.theta, lookaheadPose);
-
-        float targetVel = slew(pathPoints.at(closest).theta, prevVel, lateralSettings.slew);
-        prevVel = targetVel;
-
-        float leftVel  = targetVel * (2 + curvature * drivetrain.trackWidth) / 2;
-        float rightVel = targetVel * (2 - curvature * drivetrain.trackWidth) / 2;
-
-        // Normalise to motor range [-127, 127]
-        float ratio = std::max(std::fabs(leftVel), std::fabs(rightVel)) / 127;
-        if (ratio > 1) { leftVel /= ratio; rightVel /= ratio; }
-
-        drivetrain.leftMotors->move(forwards ?  leftVel : -rightVel);
-        drivetrain.rightMotors->move(forwards ? rightVel :  -leftVel);
-
-        pros::delay(10);
-    }
-
-    drivetrain.leftMotors->brake();
-    drivetrain.rightMotors->brake();
-}
-```
-
-### Lookahead Radius
-
-The lookahead radius is adaptive — it scales with robot speed to prevent oscillation at high velocity and tightens near waypoints for precision. A fixed lookahead radius produced visible S-curve oscillations on long straight segments at full speed; the adaptive version eliminated them.
-
----
-
-## 4 — PID Controller (Turn & Point Control)
-
-Point turns and position-hold use a PID controller with integral clamping to prevent windup.
-
-### Theory
-
-PID reacts to three components of error:
-- **P** — proportional to current error
-- **I** — proportional to accumulated past error
-- **D** — proportional to rate of change (predicts future error)
-
-### Implementation
-
-```cpp
-float PID::update(double target, double current) {
-    state.error      = target - current;
-    state.derivative = state.error - state.lastError;
-    state.integral  += state.error;
-
-    // Integral clamping (anti-windup): reset when error crosses zero
-    if ((state.error > 0 && state.lastError < 0) ||
-        (state.error < 0 && state.lastError > 0)) {
-        state.integral = 0;
-    }
-
-    state.lastError = state.error;
-    state.rawOut = consts.kP * state.error
-                 + consts.kI * state.integral
-                 + consts.kD * state.derivative;
-
-    state.reachedTarget = fabs(state.error) <= consts.exitRange;
-    return state.rawOut;
-}
-```
-
-**Integral clamping** resets the integral term whenever error changes sign (the system overshoots the target). This prevents the windup that causes oscillation when recovering from a saturated output.
-
-**Asynchronous execution** — the PID loop runs in its own PROS task at high frequency, independent of the main control loop. This keeps output latency low even when the main loop is busy with sensor reads or path planning.
-
-### Applications
-
-- **Drivetrain heading hold** — keeps the robot straight on long forward movements
-- **Point turn** — precise ±0.5° heading accuracy to waypoint headings
-- **Arm / mechanism position control** — smooth positional moves without overshoot
-
----
-
-## Results
-
-| Metric | Value |
-|--------|-------|
-| Positional error (1 m straight) | ±4 mm |
-| Heading error (90° point turn) | ±0.6° |
-| Autonomous routine repeatability | 94% (48 / 51 practice runs) |
-
-These numbers were sufficient to qualify for the **2024, 2025, and 2026 VEXU World Championships** in Dallas.
-
----
+This season's codebase (`IVR_ILLIN1_Push_Back`) is a fresh project with per-robot build
+targets for the 15-inch and 24-inch robots and basic driver control. The navigation layer above
+is the starting point for its autonomous work.
 
 ## Stack
 
-C++ · PROS (VEX RTOS) · VEX V5 Brain (ARM Cortex-A9) · VEX V5 IMU · Optical tracking wheel · Custom offline path planner (Python)
+C++ - PROS - VEX V5 Brain - V5 IMU (×2) - optical tracking wheels - Git with a shared
+`common/` layer and per-robot build targets
 
----
-
-## Further Reading
+## Further reading
 
 - [Purdue SIGBots - PID Controller](https://wiki.purduesigbots.com/software/control-algorithms/pid-controller)
 - [Purdue SIGBots - Odometry](https://wiki.purduesigbots.com/software/odometry)

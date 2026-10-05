@@ -165,22 +165,22 @@ right) and the routing that runs under the socketed DevKit to reach R1 through R
 
 ### Display and touch wiring
 
-```
-ILI9488 + XPT2046  ->  ESP32 DevKit
-------------------------------------
-VCC        ->  3.3V
-GND        ->  GND
-CS         ->  GPIO 15
-DC/RS      ->  GPIO 2
-RESET      ->  GPIO 4
-SDI(MOSI)  ->  GPIO 23
-SCK        ->  GPIO 18
-SDO(MISO)  ->  GPIO 19
-LED        ->  3.3V
-T_CS       ->  GPIO 21
-T_IRQ      ->  GPIO 22
-T_CLK, T_DIN and T_DO share the SCK/MOSI/MISO lines above (one SPI bus, separate CS)
-```
+| ILI9488 + XPT2046 pin | ESP32 DevKit | Function |
+|---|---|---|
+| VCC | 3.3V | Power |
+| GND | GND | Ground |
+| CS | GPIO 15 | Display chip select |
+| DC/RS | GPIO 2 | Data / command select |
+| RESET | GPIO 4 | Display reset |
+| SDI (MOSI) | GPIO 23 | SPI data out |
+| SCK | GPIO 18 | SPI clock |
+| SDO (MISO) | GPIO 19 | SPI data in |
+| LED | 3.3V | Backlight, always on |
+| T_CS | GPIO 21 | Touch chip select |
+| T_IRQ | GPIO 22 | Touch interrupt |
+
+T_CLK, T_DIN and T_DO share the SCK, MOSI and MISO lines above: one SPI bus, with a
+separate chip select for the display and the touch controller.
 
 Touch is wired to the header and accounted for in the pin plan, but the current
 `ENABLED_SIMHUBDASH` renderer doesn't read it yet, there's no touch-driven UI in this version.

@@ -2,7 +2,8 @@
 
 # UE5 Soulslike Combat System
 
-A third-person action game built in Unreal Engine 5, over Oct 2024 - Dec 2024. 
+A third-person action game built in Unreal Engine 5 for CS 415 (Game Development) at UIUC,
+over Oct 2024 - Dec 2024.
 Inspired by Elden Ring: every attack commits you to an animation, hits only land in a
 specific timing window, dodges are directional, and chaining a combo means reading the next
 input before the current swing finishes.

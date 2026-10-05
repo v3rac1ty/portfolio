@@ -22,23 +22,30 @@ The application is built around three primary components:
 
 ### Threading Model
 
+```mermaid
+flowchart TB
+    api[("Yahoo Finance v8 JSON API")]
+
+    subgraph worker["Worker thread"]
+        direction LR
+        get["libcurl HTTP GET"] --> parse["nlohmann/json parse<br/>into StockInfo"]
+    end
+
+    ring[["RingBuffer<br/>#lt;StockInfo, 8#gt;<br/>lock-free SPSC"]]
+
+    subgraph render["Render thread, 60 FPS"]
+        direction LR
+        pop["g_ring.pop()<br/>each frame"] --> candle["DrawCandlestickChart()"]
+        pop --> rsi["DrawRSIChart()"]
+    end
+
+    api -->|"OHLCV over HTTPS"| worker
+    worker -->|"push"| ring
+    ring -->|"pop, never blocks"| render
+    render -. "fetch request<br/>condition_variable queue" .-> worker
 ```
-Yahoo Finance v8 JSON API (HTTPS)
-        │
-        ▼
-  Worker thread (StockTracker::workerLoop)
-    ├── libcurl HTTP GET
-    └── nlohmann/json parse → StockInfo
-        │
-        ▼
-  RingBuffer<StockInfo, 8>   ← lock-free SPSC
-        │
-        ▼
-  Render thread (main)
-    ├── g_ring.pop() each frame
-    ├── DrawCandlestickChart()  → ImPlot draw list
-    └── DrawRSIChart()          → ImPlot sub-chart
-```
+
+The worker loop is `StockTracker::workerLoop`, and both chart functions draw through ImPlot.
 
 Two threads, zero mutexes in the hot path.
 

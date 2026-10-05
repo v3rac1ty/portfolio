@@ -1,70 +1,128 @@
-<!-- date: TODO -->
+<!-- date: May 2025 -->
 
 # BiLSTM COVID-19 Tweet Classifier
 
-A sequence model that classifies COVID-19 tweets into five categories — misinformation, confirmed case reports, official guidance, personal experience, and news — trained on a 100k-tweet corpus.
+A small bidirectional LSTM that decides whether a COVID-19 tweet is **informative** (it reports
+confirmed, suspected, recovered, or fatal cases, or where and how people travelled) or
+**uninformative**. Built with Sahil Jain as the final project for ECE 364 (Programming Methods
+for Machine Learning) at UIUC, on the [WNUT-2020 Task 2](https://github.com/VinAIResearch/COVID19Tweet)
+shared-task dataset.
 
 ---
 
-## Motivation
+## The task and data
 
-During the pandemic, Twitter became a primary information channel — and a major misinformation vector. Automated classification of tweet intent (not just sentiment) could help surface reliable content and flag potential misinformation pipelines at scale.
+WNUT-2020 Task 2 is binary classification over English tweets from early 2020. The labels are
+close to balanced, so plain accuracy is a fair headline metric:
 
-## Model Design
+| Split | Tweets | Informative | Uninformative |
+|-------|--------|-------------|---------------|
+| Train | 7,000 | 3,303 | 3,697 |
+| Validation | 1,000 | 472 | 528 |
+| Test | 2,000 | 944 | 1,056 |
 
-A bidirectional LSTM reads the token sequence left-to-right and right-to-left simultaneously, letting the final hidden state encode full sentence context before classification.
+Only the training split was used to fit the model. Validation loss was used to pick
+hyperparameters, and the final numbers below are on the held-out test split.
 
+## Pipeline
+
+Everything upstream of the model is written by hand rather than pulled from a tokenizer library:
+
+1. **Tokenize**: lowercase, then keep word characters only (`re.findall(r'\w+', text.lower())`).
+   The dataset already masks users and links as `@USER` and `HTTPURL`.
+2. **Vocabulary**: built from the training tweets with a minimum frequency of 2, giving 9,577
+   tokens including `<pad>` and `<unk>`.
+3. **Encode and pad**: map tokens to ids (unknown words to `<unk>`), then pad or truncate every
+   tweet to 45 tokens.
+4. **Dataset**: a custom PyTorch `Dataset` wraps the DataFrames and returns tensors, batched 32
+   at a time.
+
+## Model
+
+```mermaid
+flowchart TB
+    subgraph encoder["Encoder"]
+        direction LR
+        ids["Token ids<br/>padded to 45"] --> emb["Embedding<br/>9,577 × 75"]
+        emb --> lstm["BiLSTM<br/>96 hidden × 2 directions"]
+    end
+
+    subgraph head["Classifier head"]
+        direction LR
+        last["Output at last<br/>time step (192)"] --> drop["Dropout<br/>p = 0.6"]
+        drop --> fc["Linear<br/>192 → 2"]
+    end
+
+    encoder --> head
+    head --> out(["Informative or Uninformative"])
 ```
-Tweet ──► Tokenizer ──► Embedding (128d) ──► BiLSTM (256 hidden × 2 dirs) ──► FC ──► 5 classes
+
+```python
+class Binary_Classifier(nn.Module):
+    def __init__(self, vocab_size, embed_dim, hidden_dim, num_classes=2):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, embed_dim)
+        self.lstm = nn.LSTM(embed_dim, hidden_dim, batch_first=True, bidirectional=True)
+        self.fc = nn.Linear(hidden_dim * 2, num_classes)
+        self.dropout = nn.Dropout(p=0.6)
+
+    def forward(self, x):
+        x, _ = self.lstm(self.embedding(x))
+        return self.fc(self.dropout(x[:, -1, :]))
 ```
 
-**Architecture details:**
-- Vocabulary: 28,400 tokens (frequency-filtered, custom tokenizer)
-- Embedding: 128-dimensional learned embeddings
-- BiLSTM: 2 layers, 256 hidden units per direction, dropout 0.4
-- Classifier head: Linear(512 → 128) → ReLU → Dropout(0.3) → Linear(128 → 5)
-- Total parameters: **851,244**
+**851,525 parameters** in total, and about 718k of those are the embedding table. The heavy
+dropout was deliberate: with only 7,000 training tweets, the model starts memorising quickly.
 
 ## Training
 
 | Setting | Value |
 |---------|-------|
-| Optimizer | Adam, lr=3e-4 |
-| Batch size | 128 |
-| Epochs | 22 (early stopping, patience=4) |
-| Loss | CrossEntropyLoss with class weights |
-| Hardware | NVIDIA RTX 3060 (local) |
+| Optimizer | Adam, lr = 1e-3, weight decay = 1e-4 |
+| Loss | Cross-entropy |
+| Batch size | 32 |
+| Epochs | 10 |
+| Training time | About 8-9 minutes (Google Colab) |
 
-Class imbalance was handled with inverse-frequency weighting — the misinformation class was underrepresented (~8% of samples) and benefited most from this.
-
-## Data Pipeline
-
-1. **Collection** — 100k tweets from the COVID-Twitter dataset, filtered to English
-2. **Cleaning** — URL removal, @ normalization, hashtag splitting, lowercase
-3. **Tokenization** — custom word-level tokenizer (no BPE), max length 64
-4. **Split** — 80 / 10 / 10 train / val / test, stratified by class
+Validation loss bottomed out at **0.447 at epoch 8** and ended at 0.487 after epoch 10, while
+training loss kept falling to 0.238. That gap is the overfitting the dropout and weight decay
+were there to slow down.
 
 ## Results
 
+**76.8% test accuracy** (1,536 of 2,000 tweets correct).
+
 | Class | Precision | Recall | F1 |
 |-------|-----------|--------|----|
-| Official guidance | 0.84 | 0.89 | 0.86 |
-| News | 0.79 | 0.81 | 0.80 |
-| Personal experience | 0.73 | 0.70 | 0.71 |
-| Case report | 0.77 | 0.74 | 0.75 |
-| Misinformation | 0.68 | 0.63 | 0.65 |
-| **Overall** | | | **0.76 (macro)** |
+| Informative | 0.80 | 0.68 | 0.73 |
+| Uninformative | 0.75 | 0.85 | 0.79 |
+| **Macro average** | | | **0.76** |
 
-**Test accuracy: 76.8%**
+The model is conservative about calling a tweet informative: of its 464 mistakes, 303 were
+informative tweets labelled uninformative.
 
-The misinformation class had the lowest recall — expected given its semantic overlap with personal experience tweets and the noisier labelling in the source dataset.
+## What we tried
 
-## What I'd Do Differently
+- **Hyperparameter sweeps** over embedding size, hidden size, epochs, learning rate, and weight
+  decay. Poor settings showed the same signature every time: validation loss hits an early low,
+  then climbs fast.
+- **Swapping the LSTM for a GRU**, plus pooling layers. Convergence was a little faster, but the
+  loss did not improve and the same overfitting pattern remained.
+- **A small pretrained model** (`prajjwal1/bert-tiny` from Hugging Face). Pretraining helps a
+  lot on a dataset this small, but integrating its vocabulary pushed training time well past
+  our budget.
 
-- Fine-tune a pretrained transformer (BERTweet or RoBERTa-Twitter) rather than training embeddings from scratch. The custom tokenizer loses a lot of subword signal.
-- Add a confidence threshold so low-confidence predictions are routed to human review rather than hard-classified.
-- Experiment with focal loss instead of weighted CE for the long-tail classes.
+## What I'd do differently
+
+- **Use the real final state, not the last padded step.** `x[:, -1, :]` reads the output at
+  position 45, which for most tweets is padding. The backward direction is fine there, but the
+  forward direction has spent the end of the sequence reading `<pad>`. Packing the sequences
+  (`pack_padded_sequence`) or concatenating the two final hidden states would give the
+  classifier a cleaner signal at no extra cost.
+- **Early stopping on validation loss**, keeping the epoch-8 checkpoint instead of epoch 10.
+- **Fine-tune a tweet-specific transformer** such as BERTweet, now that the baseline is
+  established. The strongest shared-task systems were fine-tuned transformers.
 
 ## Stack
 
-Python · PyTorch · NumPy · scikit-learn · Matplotlib · Jupyter
+Python - PyTorch - pandas - NumPy - Matplotlib - Google Colab

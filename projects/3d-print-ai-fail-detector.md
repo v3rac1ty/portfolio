@@ -14,8 +14,22 @@ The failure mode I actually care about is spaghetti, where the hotend detaches f
 
 A single Python process, no firmware or `printer.cfg` changes:
 
-```
-Camera frame ──► ONNX model ──► Temporal decision engine ──► Moonraker pause (optional) + Discord notification
+```mermaid
+flowchart TB
+    cam["Webcam frame"] --> model["ONNX model<br/>YOLO26 detector or 6-class classifier"]
+    model --> engine
+
+    subgraph engine["Temporal decision engine, about 1 tick per second"]
+        direction LR
+        gates["Hard gates<br/>printing, past warmup,<br/>frame quality"] --> ema["EMA<br/>smoothing"]
+        ema --> vote["K-of-N<br/>vote"]
+        vote --> hyst["Two-tier thresholds<br/>hysteresis + cooldown"]
+        hyst --> sev["Severity gate<br/>catastrophic only"]
+    end
+
+    moonraker[("Moonraker REST API")] -. "print state<br/>(UNKNOWN fails closed)" .-> engine
+    engine --> discord["Discord notification"]
+    engine -. "pause print<br/>(disabled by default)" .-> moonraker
 ```
 
 It talks to Moonraker's REST API rather than Klipper directly, so it's decoupled from the printer's control loop. Runtime dependencies are just `onnxruntime`, OpenCV, numpy, and requests. No `ultralytics`, which is training-time only and never ships to the Pi. Two model paths are interchangeable via config: a YOLO26 object detector and a 6-class classifier.

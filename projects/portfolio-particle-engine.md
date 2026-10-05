@@ -86,7 +86,42 @@ cluster of one type can never starve another's budget:
 | Non-lethal crit | A small shockwave ring: expanding arc, radial shards, a brief white-hot core |
 | Comet-vs-comet death | The ordinary pop plus the small shockwave - being destroyed by an impact should look like an impact |
 | **Critical death** | The comet **shatters**: jagged, tumbling triangular fragments (not round sparks) flung outward, each with its own rotation and spin, plus the shockwave in its amplified form - a second trailing ring, more shards, a wider flash |
-| **Cursor kill** | A **black hole**: the void punches through everything already drawn that frame via `globalCompositeOperation = 'destination-out'`, revealing the real page background rather than an approximated fill colour, so it's correct in both light and dark theme without knowing which is active. An accretion rim spins around the collapsing edge as it closes to a point |
+| **Cursor kill** | A **black hole**: a dark shadow opens over the comet and collapses to a point, with an accretion rim spinning around its edge. The shadow uses the theme's void colour, so a black hole is dark on the light theme too |
+
+### Black-hole mergers
+
+When three or more comets fall into the cursor within a third of a second, and the black
+holes they leave are close enough to touch (within 1.25x the sum of their horizon radii),
+those holes merge with each other. It happens when the cursor has gathered a cluster and
+holds still; holes left along a fast cursor sweep are too far apart and never merge. A real binary black hole gives off almost no light, so nothing explodes.
+The effect follows what the physics, and the LIGO/NASA visualisations of it, actually show:
+
+- **Inspiral.** The merger adopts the actual holes the cursor just made, where each comet
+  was eaten and at the size it already had, and they orbit their shared centre of mass. The separation shrinks as `(1 - t/T)^(1/4)` and the angular speed rises as
+  `separation^(-3/2)`, which is the chirp: slow at first, then faster and faster.
+- **Gravitational waves.** Quadrupole radiation leaves as a two-armed spiral at a finite
+  speed. The pattern at radius `r` carries the orbital phase from the retarded time
+  `t - r/c`, which is what winds it into a spiral. The orbit's phase is recorded into a
+  fixed-interval history buffer, so finding the phase that reached any radius is an O(1)
+  lookup with linear interpolation. Wave strength follows `ω^(2/3)` through the inspiral.
+- **Merger and ringdown.** The horizons join into one remnant with about 5% less mass than
+  they had together, since that mass left as gravitational waves. Horizon radius grows
+  linearly with mass, as a Schwarzschild radius does, and the same law sizes a single kill,
+  so the remnant is visibly the sum of what went in. Its shadow wobbles as a decaying ellipse
+  while the photon ring flares briefly, and the remnant drifts off on a small recoil kick.
+- **Lensing.** Light from the star grid behind each horizon is bent outward, using the
+  outer-image radius `(β + sqrt(β² + 4θE²)) / 2`, so the grid opens into an Einstein ring
+  instead of simply being covered.
+- **Tides.** A passing wave stretches space along one axis and squeezes it along the other.
+  Grid dots and nearby comets get radial nudges signed by `cos 2(θ - φ)`, so they ride the
+  waves rather than being blown away. That sign is evaluated as
+  `((x² - y²)·cos 2φ + 2xy·sin 2φ) / r²`, with no trig per dot.
+
+Everything scales with the number of comets swallowed, and kills that land early in the
+inspiral add their mass to the binary instead of starting a second one. Held still in a
+typical field, the cursor produces roughly one merger every 15 seconds, which keeps it an
+event rather than background noise. Under 4x CPU throttling, roughly a mid-range laptop, the
+engine spends about 1.4 ms per frame idle and 2 ms mid-merger.
 
 Every death also leaves behind a **trail ghost** - a frozen, one-time copy of the dying
 comet's trail buffer that fades out in place over a quarter second instead of vanishing
@@ -99,7 +134,52 @@ rejecting the whole spawn when the request doesn't fully fit - an early version 
 latter, which meant bounces silently stopped appearing entirely during any stretch where
 their shared array ran close to full.
 
+## The hero text is solid
+
+The name and eyebrow in the hero aren't drawn on the canvas, they're ordinary HTML text, but
+comets still bounce off them. The text-intro system already splits that copy into one span per
+character, so every glyph is a measurable box, and each one becomes a static, infinite-mass
+body in the same field. A comet that hits a letter takes the whole positional correction and
+the whole reflected velocity (restitution 0.82, a little deader than comet-on-comet), plus the
+same impact damage and cracks it would take from another comet.
+
+The span box isn't the letter, though. It includes side bearings, letter-spacing, and the full
+line box, which at `line-height: .9` on the display face is far taller than the caps. Colliding
+against that meant comets bouncing off empty air. So each glyph is rendered once to an
+off-screen canvas and its painted pixels are scanned for the true ink bounds (cached per font
+and character, about twenty renders at layout and none per frame). `measureText`'s own
+bounding box isn't used directly because Chrome rounds it outward unevenly, which shifted every
+collision edge up to a pixel to the right.
+
+Two details keep it stable. A comet that somehow starts inside a glyph is always ejected
+vertically, away from the middle of the text block, because letters in a word touch: ejecting
+sideways pushes it into the neighbouring letter, which pushes it straight back. And a glyph only
+becomes solid once its intro animation has played, so nothing bounces off invisible text.
+
 ## Rendering performance
+
+**Profiled, then fixed.** Under 4x CPU throttling the field originally held about 50 fps,
+with 61 dropped frames in six seconds and a 95th-percentile frame cost of 38 ms inside the
+engine. After the changes below it holds about 160 fps with no dropped frames and a
+95th percentile of about 2 ms, and keeps its full comet population instead of shedding
+load. The changes, roughly in order of impact:
+
+- **Each glow is blurred once, not every frame.** Every comet head used canvas shadow blur for
+  its glow, a Gaussian blur per comet per frame. Each head is now rendered once into a small
+  offscreen canvas with exactly the same fill and `shadowBlur`, then stamped with
+  `drawImage`, so it looks identical. A second render at full cursor boost is layered on as a
+  comet nears the cursor. Sprites are shared by comets of near-identical colour and size,
+  and swept once nothing has drawn them for ten seconds, so the cache tracks the live
+  population (about one per comet).
+- **Invisible work skipped.** A slow comet's whole 32-point trail fits under its own head,
+  so those trails are no longer stroked at all, which covers most of the idle field.
+- **No per-frame strings.** Gradient colour stops are rebuilt only when a comet's alpha
+  changes visibly, and every effect precomputes its solid colour once, so steady frames
+  create almost no garbage for the collector.
+- **Batched cursor lines.** The dashed lines to the cursor are grouped into 8 alpha buckets:
+  eight strokes instead of one per comet.
+- **Cheaper stars.** Grid dots are 2px squares (indistinguishable from circles at that size)
+  stored as flat typed arrays rather than ~1,200 small objects.
 
 **The star grid** behind the comets is rendered with a counting sort instead of a naive
 per-bucket scan. Each frame, every star's alpha is quantised into one of 64 buckets,
@@ -134,9 +214,19 @@ one destroyed roughly 70% of the field in a single frame - comets pushed past th
 boundary by the coordinate mismatch, killed, and instantly respawned elsewhere, which
 read as the whole scene reshuffling every time the window was dragged.
 
+**Light and dark themes share one field.** Every colour that depends on the page (star-grid
+dots, black-hole shadows, highlights) comes from a small theme table, and each comet keeps
+the random draws its colour came from. On a theme switch the engine repaints every comet from
+those draws in place, amber and ember on dark, cobalt and sky blue on light, so the field
+never resets mid-flight.
+
+**Reduced motion gets a still frame.** With `prefers-reduced-motion: reduce` set, the loop
+never starts: the field is seeded and drawn once (star grid and comet heads, no trails), then
+redrawn only on resize.
+
 ## Text animations
 
-Section headings and the hero name use two on-theme intro effects, both re-triggering
+The hero copy and section headings use two on-theme intro effects, both re-triggering
 whenever their element re-enters the viewport - so they replay on scroll-back, not just
 on first load:
 

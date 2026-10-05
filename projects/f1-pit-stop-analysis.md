@@ -1,8 +1,8 @@
-<!-- date: TODO -->
+<!-- date: December 2025 -->
 
-# Formula 1 ML Pit Stop Analysis
+# Formula 1 ML Analysis
 
-A statistical and ML study of how pit stop strategy variables — timing, tyre compound, track position — affect lap-time delta in F1 races from 2018–2023.
+A statistical and ML study, built for STAT 107 (Data Science Discovery) at UIUC, of how pit stop strategy variables (timing, tyre compound, track position) affect lap-time delta in F1 races from 2018-2023.
 
 ---
 
@@ -17,13 +17,13 @@ The short answer: yes, but the effect size is smaller than F1 commentary suggest
 - **Source:** FastF1 Python API + Ergast F1 API
 - **Rows:** 21,347 individual pit stop events across 6 seasons
 - **Features engineered:**
-  - `tyre_age_at_stop` — laps on current set
-  - `delta_to_leader` — track position gap at pit entry
-  - `compound_transition` — compound in → compound out (encoded)
-  - `sc_window` — whether stop occurred within 3 laps of a safety car period
-  - `undercut_threat` — gap to nearest competitor on older tyres
-  - `track_temp` — session telemetry ambient/track temperature
-  - `circuit_type` — high/medium/low degradation (domain-encoded)
+  - `tyre_age_at_stop`: laps on current set
+  - `delta_to_leader`: track position gap at pit entry
+  - `compound_transition`: compound in → compound out (encoded)
+  - `sc_window`: whether stop occurred within 3 laps of a safety car period
+  - `undercut_threat`: gap to nearest competitor on older tyres
+  - `track_temp`: session telemetry ambient/track temperature
+  - `circuit_type`: high/medium/low degradation (domain-encoded)
 
 ## Modelling
 
@@ -42,23 +42,31 @@ All models used 5-fold CV stratified by circuit type.
 
 **Feature importances (Gradient Boosting):**
 
-```
-tyre_age_at_stop       ████████████████  0.31
-compound_transition    ████████████      0.23
-sc_window              ████████          0.17
-undercut_threat        ██████            0.12
-track_temp             ████              0.09
-circuit_type           ███               0.05
-delta_to_leader        ██                0.03
+```mermaid
+xychart-beta horizontal
+    title "Gradient Boosting feature importance"
+    x-axis ["tyre_age_at_stop", "compound_transition", "sc_window", "undercut_threat", "track_temp", "circuit_type", "delta_to_leader"]
+    y-axis "Importance" 0 --> 0.35
+    bar [0.31, 0.23, 0.17, 0.12, 0.09, 0.05, 0.03]
 ```
 
-- Tyre age at stop is the single strongest predictor — stopping on heavily degraded tyres predictably destroys the out-lap.
+| Feature | Importance |
+|---|---|
+| `tyre_age_at_stop` | 0.31 |
+| `compound_transition` | 0.23 |
+| `sc_window` | 0.17 |
+| `undercut_threat` | 0.12 |
+| `track_temp` | 0.09 |
+| `circuit_type` | 0.05 |
+| `delta_to_leader` | 0.03 |
+
+- Tyre age at stop is the single strongest predictor: stopping on heavily degraded tyres predictably destroys the out-lap.
 - The safety car window effect is large but binary; its interaction with compound choice is non-linear (tree models capture this, linear models miss it entirely).
-- Undercut threat has significant variance — it matters a lot on Monaco and Baku (tight circuits) and almost nothing on Spa or Silverstone.
+- Undercut threat has significant variance: it matters a lot on Monaco and Baku (tight circuits) and almost nothing on Spa or Silverstone.
 
 ## Statistical Validation
 
-Bootstrapped 95% confidence intervals (10,000 resamples) confirmed that all top-4 feature importances are significantly non-zero. The `delta_to_leader` feature was *not* significant at α=0.05 — track position at pit entry is a much weaker predictor than commentary would suggest.
+Bootstrapped 95% confidence intervals (10,000 resamples) confirmed that all top-4 feature importances are significantly non-zero. The `delta_to_leader` feature was *not* significant at α=0.05: track position at pit entry is a much weaker predictor than commentary would suggest.
 
 ## Limitations
 
