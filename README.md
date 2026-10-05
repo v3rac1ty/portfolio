@@ -31,12 +31,21 @@ projects/images/      images referenced by the write-ups
 ## Performance notes
 
 - No third-party request at page load: fonts are self-hosted, and the markdown renderer
-  (marked) and diagram renderer (Mermaid) load from jsDelivr only when a write-up is opened,
-  pinned with SRI hashes.
-- A write-up is fetched when its card is hovered or focused, so opening it is instant.
+  (marked) warms on card interest and Mermaid loads only for write-ups containing diagrams,
+  both pinned with SRI hashes.
+- Hover, focus and open share one markdown request. Opening downloads markdown and its
+  renderer in parallel; failed requests can be retried.
+- Closing a write-up releases its rendered images and diagrams after the exit animation.
+  Only the small markdown text cache remains; stale async renders are discarded.
 - Sections below the fold use `content-visibility: auto`.
 - The hero canvas stops when it is off screen or the tab is hidden, and renders one still
   frame under `prefers-reduced-motion`.
+- Theme waves keep the comet simulation running. Unchanged canvas dimensions never reset
+  the bitmap or rebuild the grid; same-sized grids reuse their buffers.
+- Comet palettes follow the actual eased CSS wave radius, not a separate timer. Stars and
+  cursor lines also keep the right colours on each side of the expanding/retracting wave.
+- Glow sprites are shared and retained only while owned by live comets. Trail buffers use
+  a capped reuse pool, and glyph measurements have a bounded cache across resizes.
 - The inline theme script in `<head>` is allow-listed in the CSP by its SHA-256 hash. If you
   change that line, update the hash in the CSP meta tag.
 
@@ -47,3 +56,15 @@ The modal fetches the markdown files, so serve the folder rather than opening th
 ```bash
 npx serve .
 ```
+
+## Regression checks
+
+With Node.js installed, run the dependency-free engine checks:
+
+```bash
+node --test tests/*.test.cjs
+```
+
+These cover resize/buffer reuse, cache bounds, independent ghost trails, continuous theme
+animation, the distance/time requirements for black-hole mergers, and theme-wave setup,
+cleanup, rapid clicks and skipped/unsupported capture fallbacks.

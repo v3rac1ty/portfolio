@@ -26,12 +26,70 @@
     }
     sync();
     if (!btn) return;
-    btn.addEventListener('click', function () {
-      var next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    function apply(next) {
       root.setAttribute('data-theme', next);
       try { localStorage.setItem('theme', next); } catch (e) { /* private mode: still switches */ }
       sync();
       document.dispatchEvent(new Event('themechange'));
+    }
+
+    /* CSS starts the wave as soon as the new view exists. Attaching an animation in
+       transition.ready leaves its first frame unmasked on some browser/GPU timings.
+       The new view stays live, including the canvas. Reduced motion switches instantly. */
+    var switching = false;
+
+    btn.addEventListener('click', function () {
+      if (switching) return;
+      var from = root.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+      var next = from === 'light' ? 'dark' : 'light';
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!document.startViewTransition || reduce) { apply(next); return; }
+
+      var r = btn.getBoundingClientRect();
+      var x = r.left + r.width / 2, y = r.top + r.height / 2;
+      var end = Math.ceil(Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y))) + 2;
+      switching = true;
+      root.style.setProperty('--theme-wave-x', x + 'px');
+      root.style.setProperty('--theme-wave-y', y + 'px');
+      root.style.setProperty('--theme-wave-radius', end + 'px');
+      var field = document.getElementById('hero-canvas');
+      var nav = document.getElementById('site-nav');
+      // Only the opaque, scrolled header needs to cover the live canvas. At the
+      // top, clipping this strip would make the transparent header look solid.
+      var inset = field && nav && nav.classList.contains('scrolled')
+        ? Math.max(0, nav.getBoundingClientRect().bottom - field.getBoundingClientRect().top) : 0;
+      root.style.setProperty('--comet-nav-inset', inset + 'px');
+      root.classList.add('theme-switching');
+      var direction = next === 'light' ? 'theme-wave-expand' : 'theme-wave-retract';
+      root.classList.add(direction);
+      document.dispatchEvent(new CustomEvent('themetransitionstart', {
+        detail: { from: from, to: next, x: x, y: y, radius: end }
+      }));
+      function finish() {
+        switching = false;
+        root.classList.remove('theme-switching');
+        root.classList.remove(direction);
+        root.style.removeProperty('--theme-wave-x');
+        root.style.removeProperty('--theme-wave-y');
+        root.style.removeProperty('--theme-wave-radius');
+        root.style.removeProperty('--comet-nav-inset');
+        document.dispatchEvent(new Event('themetransitionend'));
+      }
+      var transition;
+      try {
+        transition = document.startViewTransition(function () { apply(next); });
+      } catch (e) {
+        apply(next);
+        finish();
+        return;
+      }
+      transition.finished.then(finish, finish);
+      transition.ready.then(function () {
+        if (!switching) return;
+        var name = next === 'light' ? 'theme-wave' : 'theme-wave-retract';
+        var animation = document.getAnimations().find(function (a) { return a.animationName === name; });
+        document.dispatchEvent(new CustomEvent('themewaveready', { detail: { animation: animation } }));
+      }).catch(function () { transition.skipTransition(); });
     });
   })();
 
@@ -376,8 +434,12 @@
   if (!grid || !panel) return;
 
   var mdCache   = {};
+  var mdLoads   = {};     // hover, focus and open share the same in-flight request
   var opener    = null;   // element to hand focus back to on close
   var openSlug  = '';
+  var openVersion = 0;    // invalidates async work even when the same project is reopened
+  var renderVersion = 0;
+  var cleanupTimer = 0;
   var HASH_PREFIX = '#work/';
 
   // Third-party renderers, pinned with SRI and loaded on first use
@@ -394,8 +456,13 @@
       s.integrity = sri;
       s.crossOrigin = 'anonymous';
       s.async = true;
-      s.onload = function () { resolve(); };
-      s.onerror = function () { delete scriptLoads[src]; reject(new Error('failed to load ' + src)); };
+      s.onload = function () { s.onload = s.onerror = null; resolve(); };
+      s.onerror = function () {
+        s.onload = s.onerror = null;
+        s.remove();
+        delete scriptLoads[src];
+        reject(new Error('failed to load ' + src));
+      };
       document.head.appendChild(s);
     });
     return scriptLoads[src];
@@ -421,21 +488,31 @@
   }
 
   function fetchMd(slug) {
-    if (mdCache[slug]) return Promise.resolve(mdCache[slug]);
-    return fetch('projects/' + slug + '.md')
+    if (Object.prototype.hasOwnProperty.call(mdCache, slug)) return Promise.resolve(mdCache[slug]);
+    if (mdLoads[slug]) return mdLoads[slug];
+    mdLoads[slug] = fetch('projects/' + slug + '.md')
       .then(function (r) {
         if (!r.ok) throw new Error(r.status);
         return r.text();
       })
-      .then(function (text) { mdCache[slug] = text; return text; });
+      .then(function (text) {
+        delete mdLoads[slug];
+        mdCache[slug] = text;
+        return text;
+      }, function (error) {
+        delete mdLoads[slug];
+        throw error;
+      });
+    return mdLoads[slug];
   }
 
   // Write-up text plus the renderer. A renderer that fails to load is not fatal:
   // renderMd falls back to showing the raw markdown.
   function prepare(slug) {
-    return fetchMd(slug).then(function (text) {
-      return loadScript(MARKED_SRC, MARKED_SRI).then(function () { return text; }, function () { return text; });
-    });
+    return Promise.all([
+      fetchMd(slug),
+      loadScript(MARKED_SRC, MARKED_SRI).catch(function () { /* raw markdown fallback */ })
+    ]).then(function (results) { return results[0]; });
   }
 
   function warm(e) {
@@ -450,6 +527,7 @@
      from the page's own tokens, so diagrams follow the light/dark theme. If Mermaid fails
      to load, the diagram source stays visible as plain text. */
   var mermaidTheme = '';
+  var diagramQueue = Promise.resolve();
   function mermaidConfig() {
     var cs = getComputedStyle(document.documentElement);
     var v = function (name) { return cs.getPropertyValue(name).trim(); };
@@ -494,6 +572,7 @@
   }
 
   function renderDiagrams(slug) {
+    var version = renderVersion;
     var nodes = [];
     mdEl.querySelectorAll('pre > code.language-mermaid').forEach(function (code) {
       var div = document.createElement('div');
@@ -503,19 +582,23 @@
       nodes.push(div);
     });
     if (!nodes.length) return;
-    loadScript(MERMAID_SRC, MERMAID_SRI)
+    // Mermaid has global configuration; serialize rendering and discard work for a
+    // replaced/closed document before it reaches the expensive layout engine.
+    diagramQueue = Promise.all([diagramQueue, loadScript(MERMAID_SRC, MERMAID_SRI)])
       .then(function () {
-        if (openSlug !== slug) return;
+        if (openSlug !== slug || renderVersion !== version || !nodes[0].isConnected) return;
         var t = document.documentElement.getAttribute('data-theme');
         if (t !== mermaidTheme) { window.mermaid.initialize(mermaidConfig()); mermaidTheme = t; }
         return window.mermaid.run({ nodes: nodes });
       })
       .catch(function () {
+        if (renderVersion !== version) return;
         nodes.forEach(function (n) { n.classList.add('mermaid-diagram--source'); });
       });
   }
 
   function renderMd(text) {
+    renderVersion++;
     loadingEl.hidden = true;
     mdEl.textContent = '';
     if (typeof marked !== 'undefined') {
@@ -538,6 +621,9 @@
   function openModal(card) {
     var slug = card.dataset.slug || '';
     if (!slug) return;
+    clearTimeout(cleanupTimer);
+    var version = ++openVersion;
+    renderVersion++;
     openSlug = slug;
     var active = document.activeElement;
     opener = active && active !== document.body ? active : card.querySelector('.project-card__open');
@@ -565,11 +651,11 @@
     document.getElementById('modal-close').focus({ preventScroll: true });
 
     prepare(slug).then(function (text) {
-      if (openSlug !== slug) return;
+      if (openVersion !== version || openSlug !== slug) return;
       renderMd(text);
       renderDiagrams(slug);
     }, function () {
-      if (openSlug === slug) {
+      if (openVersion === version && openSlug === slug) {
         renderMd('# ' + titleEl.textContent + '\n\nThe write-up could not be loaded. Check your connection and try again.');
       }
     });
@@ -578,6 +664,8 @@
   function closeModal() {
     if (!openSlug) return;
     openSlug = '';
+    openVersion++;
+    renderVersion++;
     backdrop.classList.remove('is-open');
     panel.classList.remove('is-open');
     panel.inert = true;
@@ -585,7 +673,20 @@
     history.replaceState(null, '', '#projects');
     if (opener && opener.focus) opener.focus({ preventScroll: true });
     opener = null;
+    // Keep the exit animation intact, then release decoded images and diagram DOM.
+    // The text cache is small and preserves instant reopens without another download.
+    cleanupTimer = setTimeout(clearClosedContent, 400);
   }
+
+  function clearClosedContent() {
+    if (openSlug) return;
+    clearTimeout(cleanupTimer);
+    mdEl.textContent = '';
+    tagsEl.textContent = '';
+  }
+  panel.addEventListener('transitionend', function (e) {
+    if (e.target === panel && e.propertyName === 'opacity') clearClosedContent();
+  });
 
   // Keep Tab inside the open dialog
   function trapFocus(e) {

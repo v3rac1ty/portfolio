@@ -33,6 +33,40 @@
     return document.documentElement.getAttribute('data-theme') === 'light' ? THEMES.light : THEMES.dark;
   }
   let theme = currentTheme();
+  let themeWave = null;
+
+  // Match the CSS wave's cubic-bezier(.22,1,.36,1). CSS keyframe easing is not
+  // included in getComputedTiming().progress, so invert its x curve once per frame.
+  function waveEase(progress) {
+    if (progress <= 0 || progress >= 1) return progress;
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 20; i++) {
+      const t = (lo + hi) * 0.5, u = 1 - t;
+      const x = 0.66 * t * u * u + 1.08 * t * t * u + t * t * t;
+      if (x < progress) lo = t; else hi = t;
+    }
+    const u = 1 - (lo + hi) * 0.5;
+    return 1 - u * u * u;
+  }
+  function updateThemeWave() {
+    if (!themeWave || !themeWave.animation) return;
+    const progress = themeWave.animation.effect.getComputedTiming().progress;
+    if (progress === null) return;
+    const eased = waveEase(progress);
+    const radius = themeWave.radius * (themeWave.to === 'light' ? eased : 1 - eased);
+    themeWave.radius2 = radius * radius;
+  }
+  function themeAt(x, y) {
+    if (!themeWave) return theme;
+    const dx = x + heroLeft - themeWave.x, dy = y + heroTop - themeWave.y;
+    return dx * dx + dy * dy <= themeWave.radius2 ? THEMES.light : THEMES.dark;
+  }
+  function syncParticlePalettes() {
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i], palette = themeAt(p.x, p.y);
+      if (p.light !== palette.light) p.paint(palette);
+    }
+  }
 
   let W = 0, H = 0;
   let mouseX = -9999, mouseY = -9999;
@@ -63,6 +97,14 @@
   let   perfCount    = 0;
   let   liveMax      = 0;                // population target now, never above MAX
   const TRAIL_LEN   = 32;
+  // Reuse short-lived trail storage, with a small cap so idle memory stays bounded.
+  const trailPool = [];
+  function acquireTrail() {
+    return trailPool.pop() || new Float32Array(TRAIL_LEN * 2);
+  }
+  function releaseTrail(trail) {
+    if (trailPool.length < 32) trailPool.push(trail);
+  }
   // Trails are stroked as a polyline through TRAIL_LEN recorded points, but a comet
   // drifting at START_SPEED lays those 32 points down inside about 8px - so the stroke
   // spends 31 segments redrawing what is visually one short dash. Points closer together
@@ -244,7 +286,7 @@
     if (t < coreCut) {
       const ct = 1 - t / coreCut;
       c.globalAlpha = ct * ct * 0.95 * scrollOpacity;
-      c.fillStyle   = theme.hot;
+      c.fillStyle   = themeAt(this.x, this.y).hot;
       c.beginPath();
       c.arc(this.x, this.y, (this.big ? 2.4 : 1.5) + ct * (this.big ? 5.5 : 3.5), 0, Math.PI * 2);
       c.fill();
@@ -394,7 +436,7 @@
 
     if (R > 0.2) {
       ctx.globalAlpha = scrollOpacity;
-      ctx.fillStyle   = theme.void;
+      ctx.fillStyle   = themeAt(this.x, this.y).void;
       ctx.beginPath();
       ctx.arc(this.x, this.y, R, 0, Math.PI * 2);
       ctx.fill();
@@ -619,7 +661,7 @@
   // A horizon's dark shadow, deformed into an ellipse by `e` during the ringdown
   function fillShadow(x, y, R, e, rot, alpha) {
     ctx.globalAlpha = alpha;
-    ctx.fillStyle   = theme.void;
+    ctx.fillStyle   = themeAt(x, y).void;
     ctx.beginPath();
     ctx.ellipse(x, y, R * (1 + e), R * (1 - e), rot, 0, Math.PI * 2);
     ctx.fill();
@@ -763,7 +805,8 @@
   // never moves and never reads mouseX/mouseY again, so it cannot end up looking like
   // it is still chasing the cursor if the mouse moves away right after the kill.
   function TrailGhost(p) {
-    this.trail     = new Float32Array(p.trail);   // copy - p may be swap-removed after this
+    this.trail     = acquireTrail();
+    this.trail.set(p.trail);   // independent copy; never shares storage with a live comet
     this.trailHead = p.trailHead;
     this.r         = p.r;
     this.tint      = p.tint;
@@ -854,8 +897,13 @@
 
   function resizeCanvas() {
     const prevW = W, prevH = H;
-    W = canvas.width  = heroEl.offsetWidth  || window.innerWidth;
-    H = canvas.height = heroEl.offsetHeight || window.innerHeight;
+    W = heroEl.offsetWidth  || window.innerWidth;
+    H = heroEl.offsetHeight || window.innerHeight;
+    const changed = prevW !== W || prevH !== H;
+    // Setting either bitmap dimension clears it and resets the drawing state, even
+    // when the value is unchanged. Font/layout events still need glyph measurement.
+    if (prevW !== W) canvas.width = W;
+    if (prevH !== H) canvas.height = H;
 
     // Population is a function of area, fixed at the first real layout
     if (!MAX && W > 0 && H > 0) {
@@ -868,7 +916,7 @@
       rescaleField(W / prevW, H / prevH);
     }
 
-    initGrid();
+    if (changed) initGrid();
     syncHeroRect();
     measureLetters();   // glyph boxes are layout-derived and move with the hero
     if (reducedMotion) drawStill();
@@ -878,11 +926,16 @@
     const cols = Math.ceil(W / GRID_STEP) + 1;
     const rows = Math.ceil(H / GRID_STEP) + 1;
     gridN     = cols * rows;
-    gridBX    = new Float32Array(gridN);
-    gridBY    = new Float32Array(gridN);
-    gridPhase = new Float32Array(gridN);
-    gridFreq  = new Float32Array(gridN);
-    gridPosA  = new Float32Array(gridN);
+    if (gridBX.length !== gridN) {
+      gridBX    = new Float32Array(gridN);
+      gridBY    = new Float32Array(gridN);
+      gridPhase = new Float32Array(gridN);
+      gridFreq  = new Float32Array(gridN);
+      gridPosA  = new Float32Array(gridN);
+      gridPos    = new Float32Array(gridN * 2);
+      gridBucket = new Uint8Array(gridN);
+      gridOrder  = new Int32Array(gridN);
+    }
     const fadeZone = H * 0.28, fadeTop = H * 0.72;
     for (let r = 0, i = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++, i++) {
@@ -895,10 +948,6 @@
         gridPosA[i]  = by < fadeTop ? 1 : Math.max(0, 1 - (by - fadeTop) / fadeZone);
       }
     }
-    // Pre-allocate render buffers: sized to the dot count, not buckets x dots
-    gridPos    = new Float32Array(gridN * 2);
-    gridBucket = new Uint8Array(gridN);
-    gridOrder  = new Int32Array(gridN);
   }
 
   function drawGrid(ts) {
@@ -957,9 +1006,9 @@
         const ex = bx - M.x, ey = by - M.y, e2 = ex * ex + ey * ey;
         const fr = M.age * MERGER_C;
         if (e2 >= fr * fr || e2 < 1) continue;
-        const a = M.waveAt(Math.sqrt(e2));
+        const ed = Math.sqrt(e2);
+        const a = M.waveAt(ed);
         if (a < 0.01) continue;
-        const ed   = Math.sqrt(e2);
         const q    = ((ex * ex - ey * ey) * M.wc + 2 * ex * ey * M.ws) / e2;   // cos 2(θ - φ)
         const disp = MERGER_RIPPLE_AMP * a * q / Math.sqrt(Math.max(1, ed / 60));
         rx += (ex / ed) * disp;
@@ -989,19 +1038,24 @@
 
     // One fill() per non-empty bucket - O(GRID_BUCKETS) draw calls total.
     // Runs are contiguous and in bucket order, so a running offset locates each.
-    ctx.fillStyle = theme.dot;
     let runStart = 0;
     for (let b = 0; b < GRID_BUCKETS; b++) {
       const count = bucketCount[b];
       if (count === 0) continue;
       ctx.globalAlpha = (b + 0.5) / GRID_BUCKETS;
-      ctx.beginPath();
-      for (let k = 0; k < count; k++) {
-        const idx = gridOrder[runStart + k] * 2;
-        const x = gridPos[idx], y = gridPos[idx + 1];
-        ctx.rect(x - 1.1, y - 1.1, 2.2, 2.2);   // a 2px square is indistinguishable from a dot
+      // Only the short wave needs two colour batches; ordinary frames keep one.
+      for (let pass = 0; pass < (themeWave ? 2 : 1); pass++) {
+        const palette = themeWave ? (pass ? THEMES.light : THEMES.dark) : theme;
+        ctx.fillStyle = palette.dot;
+        ctx.beginPath();
+        for (let k = 0; k < count; k++) {
+          const idx = gridOrder[runStart + k] * 2;
+          const x = gridPos[idx], y = gridPos[idx + 1];
+          if (themeWave && themeAt(x, y) !== palette) continue;
+          ctx.rect(x - 1.1, y - 1.1, 2.2, 2.2);
+        }
+        ctx.fill();
       }
-      ctx.fill();
       runStart += count;
     }
   }
@@ -1013,10 +1067,10 @@
   // canvas, and stamped with drawImage. A second render at full cursor boost (larger,
   // brighter glow) is layered on top as a comet nears the cursor, matching how the live
   // glow grew. Sprites are shared by comets of near-identical colour and size, and swept
-  // once no living comet has drawn them for a while, so the cache tracks the population.
+  // once no living comet owns them, so the cache tracks the population.
   const GLOW_BOOST_MAX = 0.4;      // cursor boost at point blank, see Particle.draw
   const headSprites = new Map();
-  let   frameNo     = 0;           // advanced by animate(); used to age out sprites
+  let   frameNo     = 0;
   function renderHead(headRgb, rgb, r, boost) {
     const blur = 10 + boost * 8;
     const rad  = r * (1 + boost * 0.35);
@@ -1032,18 +1086,20 @@
     g.fill();
     return c;
   }
-  function headSprite(shade, r, headRgb, rgb) {
-    const key = (theme.light ? 'l' : 'd') + Math.round(shade * 31) + ':' + Math.round(r * 4);
+  function headSprite(shade, r, headRgb, rgb, palette) {
+    const key = (palette.light ? 'l' : 'd') + Math.round(shade * 31) + ':' + Math.round(r * 4);
     let e = headSprites.get(key);
     if (!e) {
-      e = { base: renderHead(headRgb, rgb, r, 0), boosted: null, headRgb: headRgb, rgb: rgb, r: r, used: frameNo };
+      e = { base: renderHead(headRgb, rgb, r, 0), boosted: null, headRgb: headRgb, rgb: rgb, r: r, live: false };
       headSprites.set(key, e);
     }
     return e;
   }
   function sweepHeadSprites() {
+    headSprites.forEach(function (e) { e.live = false; });
+    for (let i = 0; i < particles.length; i++) particles[i].sprite.live = true;
     headSprites.forEach(function (e, key) {
-      if (frameNo - e.used > 600) headSprites.delete(key);
+      if (!e.live) headSprites.delete(key);
     });
   }
 
@@ -1078,7 +1134,7 @@
     this.paint();
 
     // Ring buffer: Float32Array avoids object allocation & shift() O(n)
-    this.trail = new Float32Array(TRAIL_LEN * 2);
+    this.trail = acquireTrail();
     this.trailHead = 0;   // index of oldest slot
     this.resetTrail();
   }
@@ -1095,10 +1151,11 @@
   // The same random draws drive both, so a comet keeps its place in the range across a
   // switch. Colour only changes on a theme switch, so every rgba() prefix is cached here
   // instead of being re-concatenated 60x a second.
-  Particle.prototype.paint = function () {
+  Particle.prototype.paint = function (palette) {
+    palette = palette || themeAt(this.x, this.y);
     const tint = this.shade;
     let r, g, b, head;
-    if (theme.light) {
+    if (palette.light) {
       r = Math.max(10,  Math.min(90,  Math.round(20  + tint * 55  + (this.jr - 0.5) * 16)));
       g = Math.max(40,  Math.min(175, Math.round(55  + tint * 105 + (this.jg - 0.5) * 20)));
       b = Math.max(170, Math.min(245, Math.round(185 + tint * 50  + (this.jb - 0.5) * 20)));
@@ -1110,13 +1167,14 @@
       head = `${Math.min(255, r + 20)}, ${Math.min(255, g + 34)}, ${Math.min(255, b + 48)}`;
     }
     this.rgb      = `${r}, ${g}, ${b}`;
+    this.light    = palette.light;
     this.headRgb  = head;
     this.tint     = `rgba(${this.rgb},`;
     this.headTint = `rgba(${this.headRgb},`;
     this.lineCol  = `rgba(${this.rgb},1)`;
     this.stopTail = this.tint + '0)';
     this.aq       = -1;            // forces the alpha-dependent stops to rebuild
-    this.sprite   = headSprite(this.shade, this.r, this.headRgb, this.rgb);
+    this.sprite   = headSprite(this.shade, this.r, this.headRgb, this.rgb, palette);
   };
 
   Particle.prototype.resetTrail = function () {
@@ -1199,6 +1257,7 @@
 
   Particle.prototype.draw = function () {
     const a    = this.alpha();
+    if (a <= 0 || scrollOpacity <= 0) return;   // physics continues; invisible paint does not
     const buf  = this.trail;
     const head = this.trailHead;    // oldest slot index
 
@@ -1253,7 +1312,6 @@
     const md2 = mdx * mdx + mdy * mdy;
     const glowBoost = md2 < MOUSE_R2 ? (1 - md2 / MOUSE_R2) * GLOW_BOOST_MAX : 0;
     const e = this.sprite;
-    e.used = frameNo;
     const base = e.base;
     ctx.globalAlpha = a * scrollOpacity;
     ctx.drawImage(base, hx - base.width / 2, hy - base.height / 2);
@@ -1301,7 +1359,7 @@
       const bh    = 1.3;
       const bx    = hx - bw / 2;
       const by    = hy - this.r - 5.5;
-      ctx.fillStyle = `rgba(${theme.ink}, ${(alpha * 0.16).toFixed(3)})`;
+      ctx.fillStyle = `rgba(${this.light ? THEMES.light.ink : THEMES.dark.ink}, ${(alpha * 0.16).toFixed(3)})`;
       ctx.fillRect(bx, by, bw, bh);
       ctx.fillStyle = `rgba(238, ${Math.round(40 + 150 * frac)}, 45, ${alpha.toFixed(3)})`;
       ctx.fillRect(bx, by, bw * frac, bh);
@@ -1313,6 +1371,15 @@
   // stroke (and one state change) per comet.
   const LINE_BUCKETS = 8;
   let lineBucket = new Int8Array(0);
+  function clipWaveRegion(light) {
+    const x = themeWave.x - heroLeft, y = themeWave.y - heroTop;
+    const r = Math.sqrt(themeWave.radius2);
+    ctx.beginPath();
+    if (!light) ctx.rect(0, 0, W, H);
+    ctx.moveTo(x + r, y);
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip(light ? 'nonzero' : 'evenodd');
+  }
   function drawCursorLines() {
     if (mouseX === -9999) return;
     if (lineBucket.length < particles.length) lineBucket = new Int8Array(particles.length * 2);
@@ -1330,21 +1397,26 @@
     }
     if (!any) return;
     ctx.lineWidth   = 0.65;
-    ctx.strokeStyle = theme.line;
     ctx.setLineDash([3, 5]);
-    for (let b = 0; b < LINE_BUCKETS; b++) {
-      let started = false;
-      for (let i = 0; i < particles.length; i++) {
-        if (lineBucket[i] !== b) continue;
-        if (!started) { ctx.beginPath(); started = true; }
-        const p    = particles[i];
-        const hIdx = ((p.trailHead + TRAIL_LEN - 1) % TRAIL_LEN) * 2;
-        ctx.moveTo(mouseX, mouseY);
-        ctx.lineTo(p.trail[hIdx], p.trail[hIdx + 1]);
+    for (let pass = 0; pass < (themeWave ? 2 : 1); pass++) {
+      const palette = themeWave ? (pass ? THEMES.light : THEMES.dark) : theme;
+      if (themeWave) { ctx.save(); clipWaveRegion(palette.light); }
+      ctx.strokeStyle = palette.line;
+      for (let b = 0; b < LINE_BUCKETS; b++) {
+        let started = false;
+        for (let i = 0; i < particles.length; i++) {
+          if (lineBucket[i] !== b) continue;
+          if (!started) { ctx.beginPath(); started = true; }
+          const p    = particles[i];
+          const hIdx = ((p.trailHead + TRAIL_LEN - 1) % TRAIL_LEN) * 2;
+          ctx.moveTo(mouseX, mouseY);
+          ctx.lineTo(p.trail[hIdx], p.trail[hIdx + 1]);
+        }
+        if (!started) continue;
+        ctx.globalAlpha = ((b + 0.5) / LINE_BUCKETS) * 0.55 * scrollOpacity;
+        ctx.stroke();
       }
-      if (!started) continue;
-      ctx.globalAlpha = ((b + 0.5) / LINE_BUCKETS) * 0.55 * scrollOpacity;
-      ctx.stroke();
+      if (themeWave) ctx.restore();
     }
     ctx.setLineDash([]);   // reset dash once after the batch
   }
@@ -1445,11 +1517,16 @@
   //
   // One render + readback per distinct glyph, cached by font and character, so the whole
   // hero costs about twenty of them once at layout rather than any per-frame work.
-  const inkCache = Object.create(null);
+  const inkCache = new Map();
+  function cacheInk(key, value) {
+    // Fluid font sizes create new keys on resize. Keep only a bounded working set.
+    if (inkCache.size >= 512) inkCache.delete(inkCache.keys().next().value);
+    inkCache.set(key, value);
+    return value;
+  }
   function measureInk(ch, font) {
     const key = font + '\u0000' + ch;
-    const hit = inkCache[key];
-    if (hit !== undefined) return hit;
+    if (inkCache.has(key)) return inkCache.get(key);
 
     sctx.font = font;
     const m = sctx.measureText(ch);
@@ -1458,7 +1535,7 @@
     const oy = Math.ceil(m.actualBoundingBoxAscent) + PAD;
     const w  = ox + Math.ceil(m.actualBoundingBoxRight)   + PAD;
     const h  = oy + Math.ceil(m.actualBoundingBoxDescent) + PAD;
-    if (!(w > 0 && h > 0 && w < 4096 && h < 4096)) return (inkCache[key] = null);
+    if (!(w > 0 && h > 0 && w < 4096 && h < 4096)) return cacheInk(key, null);
 
     if (scratch.width  < w) scratch.width  = w;
     if (scratch.height < h) scratch.height = h;
@@ -1489,8 +1566,7 @@
       dx: x0 - ox, dy: y0 - oy, w: x1 - x0 + 1, h: y1 - y0 + 1,
       fa: m.fontBoundingBoxAscent, fd: m.fontBoundingBoxDescent,
     };
-    inkCache[key] = res;
-    return res;
+    return cacheInk(key, res);
   }
 
   function Letter(el, ch) {
@@ -1901,6 +1977,7 @@
   function animate(ts) {
     if ((++frameNo & 255) === 0) sweepHeadSprites();
     if (!running) return;
+    updateThemeWave();
     const dt = prev ? Math.min(ts - prev, 50) : 16;
     prev = ts;
 
@@ -1927,6 +2004,7 @@
 
     for (let i = particles.length - 1; i >= 0; i--) {
       if (!particles[i].alive) {
+        releaseTrail(particles[i].trail);
         particles[i] = particles[particles.length - 1];
         particles.pop();
       }
@@ -1938,6 +2016,7 @@
     while (particles.length < liveMax) spawnOne();
 
     for (let i = 0; i < particles.length; i++) particles[i].update(dt);
+    if (themeWave) syncParticlePalettes();
 
     resolveCollisions();   // after integration, while positions are current
 
@@ -1951,6 +2030,7 @@
       const g = ghosts[i];
       g.update(dt);
       if (!g.alive) {
+        releaseTrail(g.trail);
         ghosts[i] = ghosts[ghosts.length - 1];
         ghosts.pop();
         continue;
@@ -2095,12 +2175,31 @@
     syncRunState();
   }, { threshold: 0 }).observe(heroEl);
   document.addEventListener('visibilitychange', syncRunState);
+  document.addEventListener('themetransitionstart', function (e) {
+    if (!e.detail) return;
+    themeWave = {
+      x: e.detail.x, y: e.detail.y, radius: e.detail.radius, to: e.detail.to,
+      radius2: e.detail.to === 'light' ? 0 : e.detail.radius * e.detail.radius,
+      animation: null
+    };
+  });
+  document.addEventListener('themewaveready', function (e) {
+    if (themeWave) themeWave.animation = e.detail.animation;
+  });
+  document.addEventListener('themetransitionend', function () {
+    themeWave = null;
+    syncParticlePalettes();
+    sweepHeadSprites();
+  });
 
   resizeCanvas();
   seedField();
   document.addEventListener('themechange', function () {
     theme = currentTheme();
-    for (let i = 0; i < particles.length; i++) particles[i].paint();
+    if (!themeWave) {
+      syncParticlePalettes();
+      sweepHeadSprites();
+    }
     for (let i = 0; i < letters.length; i++) letters[i].rgb = rgbOf(getComputedStyle(letters[i].el).color);
     if (reducedMotion) drawStill();
   });

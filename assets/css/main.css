@@ -176,14 +176,15 @@ section > .container > .section-title{margin-bottom:clamp(2.5rem,6vh,4rem)}
   transition:background-color .3s,border-color .3s;
 }
 .nav.scrolled{
-  background:var(--nav-bg);
+  /* A solid surface stays stable in view-transition captures; backdrop blur can
+     lose its backing layer and make this bar briefly transparent during a swap. */
+  background:var(--bg);
   border-bottom-color:var(--line);
-  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
 }
-.nav__inner{height:100%;display:flex;align-items:center;gap:1rem}
+.nav__inner{--nav-gap:clamp(.9rem,3vw,2.25rem);height:100%;display:flex;align-items:center;gap:var(--nav-gap)}
 .nav__logo{font-family:var(--font-mono);font-size:.75rem;letter-spacing:.15em;color:var(--text-dim);margin-right:auto}
 .nav__logo:hover{color:var(--accent-ink)}
-.nav__links{display:flex;gap:clamp(.9rem,3vw,2.25rem);list-style:none}
+.nav__links{display:flex;gap:var(--nav-gap);list-style:none}
 .nav__links a{
   display:inline-block;padding:.5rem 0 calc(.5rem - 1px);
   font-family:var(--font-mono);font-size:.65rem;letter-spacing:.14em;text-transform:uppercase;
@@ -191,9 +192,9 @@ section > .container > .section-title{margin-bottom:clamp(2.5rem,6vh,4rem)}
 }
 .nav__links a:hover{color:var(--text);border-bottom-color:var(--line-strong)}
 .nav__links a[aria-current="true"]{color:var(--text);border-bottom-color:var(--accent)}
-@media(max-width:420px){.nav__links{gap:.7rem}.nav__links a{letter-spacing:.04em}}
+@media(max-width:420px){.nav__inner{--nav-gap:.7rem}.nav__links a{letter-spacing:.04em}}
 .theme-toggle{
-  width:2rem;height:2rem;display:inline-flex;align-items:center;justify-content:center;
+  width:2rem;height:2rem;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
   border:1px solid var(--line-strong);color:var(--text-dim);font-size:.95rem;
   transition:color .2s,border-color .2s;
 }
@@ -458,9 +459,10 @@ section > .container > .section-title{margin-bottom:clamp(2.5rem,6vh,4rem)}
 .modal-backdrop{
   position:fixed;inset:0;z-index:var(--z-modal);
   background:var(--overlay);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-  opacity:0;pointer-events:none;transition:opacity .3s var(--ease-out);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .3s var(--ease-out),visibility 0s linear .3s;
 }
-.modal-backdrop.is-open{opacity:1;pointer-events:auto}
+.modal-backdrop.is-open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .3s var(--ease-out)}
 .modal-panel{
   position:fixed;top:50%;left:50%;z-index:calc(var(--z-modal) + 1);
   width:min(980px,calc(100vw - 2rem));max-height:min(85vh,85dvh);
@@ -562,3 +564,46 @@ section > .container > .section-title{margin-bottom:clamp(2.5rem,6vh,4rem)}
   font-family:var(--font-mono);font-size:.78rem;
 }
 .md-body hr{border:none;border-top:1px solid var(--line);margin:1.75rem 0}
+
+/* Theme switch wave (see main.js): the browser's default cross-fade is replaced by a
+   clip-path reveal of the new page over the old one. */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after{transition:none !important}
+/* Keep the canvas out of the frozen old page snapshot. Its separate new image is
+   live, even while the light page contracts above the new dark page. */
+.theme-switching #hero-canvas{view-transition-name:comet-field}
+::view-transition-group(comet-field){
+  animation:none;z-index:2;
+  /* Cover particles only beneath an opaque scrolled nav; keep the top seamless. */
+  clip-path:inset(var(--comet-nav-inset,0px) 0 0 0);
+}
+::view-transition-image-pair(comet-field){isolation:isolate}
+::view-transition-old(comet-field){display:none}
+::view-transition-new(comet-field){animation:none;mix-blend-mode:normal}
+::view-transition-group(root){animation:none;z-index:0}
+::view-transition-old(root),
+::view-transition-new(root){animation:none;mix-blend-mode:normal}
+::view-transition-image-pair(root){isolation:isolate}
+::view-transition-old(root){display:block;z-index:0}
+::view-transition-new(root){z-index:1}
+/* Apply the initial mask before the first snapshot frame, not after ready resolves.
+   The native CSS animation also owns the view transition's full lifetime. */
+.theme-wave-expand::view-transition-new(root){
+  clip-path:circle(0px at var(--theme-wave-x) var(--theme-wave-y));
+  animation:theme-wave .65s cubic-bezier(.22,1,.36,1) both;
+}
+.theme-wave-retract::view-transition-new(root){z-index:0}
+.theme-wave-retract::view-transition-old(root){
+  z-index:1;
+  clip-path:circle(var(--theme-wave-radius) at var(--theme-wave-x) var(--theme-wave-y));
+  animation:theme-wave-retract .65s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes theme-wave{
+  from{clip-path:circle(0px at var(--theme-wave-x) var(--theme-wave-y))}
+  to{clip-path:circle(var(--theme-wave-radius) at var(--theme-wave-x) var(--theme-wave-y))}
+}
+@keyframes theme-wave-retract{
+  from{clip-path:circle(var(--theme-wave-radius) at var(--theme-wave-x) var(--theme-wave-y))}
+  to{clip-path:circle(0px at var(--theme-wave-x) var(--theme-wave-y))}
+}

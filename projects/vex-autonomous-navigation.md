@@ -1,8 +1,8 @@
-<!-- date: ongoing -->
+<!-- date: 2026 -->
 
 # VEX Autonomous Navigation Stack
 
-The autonomous navigation code behind Illini VEX Robotics, UIUC's VEX U team, across three
+The autonomous navigation code behind Illini VEX Robotics, UIUC's VEX U team, from 2023 to 2026 across three
 seasons: **Over Under** (2023-24), **High Stakes** (2024-25), and **Push Back** (2025-26). It is
 written in C++ on [PROS](https://pros.cs.purdue.edu/), the open-source RTOS for the VEX V5 brain,
 and runs two robots per season (a 15-inch and a 24-inch) from one shared codebase. The team
